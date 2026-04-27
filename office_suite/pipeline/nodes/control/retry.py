@@ -23,6 +23,11 @@ class RetryNode(NodeExecutor):
         if target is None and executor_fn is None:
             raise ValueError("retry: 缺少 target 或 executor 参数")
 
+        if executor_fn is not None and not callable(executor_fn):
+            raise ValueError(
+                f"retry: executor 必须是可调用对象，得到 {type(executor_fn).__name__}"
+            )
+
         last_error = None
 
         for attempt in range(max_retries + 1):

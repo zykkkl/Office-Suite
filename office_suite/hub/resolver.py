@@ -14,6 +14,7 @@
 """
 
 import logging
+import json
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +69,22 @@ class ResourceResolver:
             )
 
         # 生成缓存键
-        cache_key = str(source)
+        # 标量类型直接 str()；结构化数据用 json.dumps(sort_keys=True) 保证键顺序无关
+        if isinstance(source, (str, int, float, bool)):
+            cache_key = str(source)
+        else:
+            try:
+                cache_key = json.dumps(source, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+            except TypeError:
+                cache_key = str(source)
+
+        # 若 kwargs 非空，将其追加到 key 中避免同 source 不同选项的碰撞
+        if kwargs:
+            try:
+                kwargs_part = json.dumps(kwargs, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+                cache_key = f"{cache_key}|{kwargs_part}"
+            except TypeError:
+                cache_key = f"{cache_key}|{str(kwargs)}"
 
         # 1. 缓存命中
         cached = self.cache.get(cache_key)

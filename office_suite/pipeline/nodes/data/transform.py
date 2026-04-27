@@ -69,23 +69,32 @@ class TransformNode(NodeExecutor):
         op = params.get("op", "eq")
         value = params.get("value")
 
+        # 支持的比较操作符
+        operators = {
+            "eq":  lambda a, b: a == b,
+            "ne":  lambda a, b: a != b,
+            "gt":  lambda a, b: a > b,
+            "lt":  lambda a, b: a < b,
+            "gte": lambda a, b: a >= b,
+            "lte": lambda a, b: a <= b,
+        }
+
+        if op not in operators:
+            raise ValueError(f"transform: 不支持的过滤操作符 '{op}'，合法值: {list(operators)}")
+
+        compare = operators[op]
+
         result = []
         for item in data:
             if not isinstance(item, dict) or field not in item:
                 continue
             item_val = item[field]
-            if op == "eq" and item_val == value:
-                result.append(item)
-            elif op == "ne" and item_val != value:
-                result.append(item)
-            elif op == "gt" and item_val > value:
-                result.append(item)
-            elif op == "lt" and item_val < value:
-                result.append(item)
-            elif op == "gte" and item_val >= value:
-                result.append(item)
-            elif op == "lte" and item_val <= value:
-                result.append(item)
+            try:
+                if compare(item_val, value):
+                    result.append(item)
+            except TypeError:
+                # 跳过无法比较的值，不中断整个过滤
+                continue
         return result
 
     @staticmethod

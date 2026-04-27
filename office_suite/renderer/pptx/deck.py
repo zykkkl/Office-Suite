@@ -518,16 +518,25 @@ class PPTXRenderer(BaseRenderer):
           { color: "#000000", opacity: 0.5, blur: 4, offset_x: 3, offset_y: 3, angle: 45 }
 
         python-pptx 未暴露阴影 API，直接操作底层 XML。
+        spPr 通过 shape._element.spPr 属性访问（python-pptx 内部属性），
+        避免因命名空间差异（p: vs a:）导致 find() 返回 None。
         """
         from lxml import etree
 
         a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
-        # 获取 spPr（shape properties）
-        sp_pr = shape._element.find(f'.//{{{a_ns}}}spPr')
+        # 优先使用 python-pptx 内部属性直接获取 spPr，
+        # 回退到 XPath 搜索（兼容不同 shape 类型）
+        sp_pr = getattr(shape._element, 'spPr', None)
         if sp_pr is None:
-            # 对于 txBox，spPr 在不同位置
-            sp_pr = shape._element.find('.//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}spPr')
+            # 在整个元素树中搜索（p:spPr 和 xdr:spPr 均可匹配）
+            for ns in (
+                'http://schemas.openxmlformats.org/presentationml/2006/main',
+                'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+            ):
+                sp_pr = shape._element.find(f'.//{{{ns}}}spPr')
+                if sp_pr is not None:
+                    break
         if sp_pr is None:
             return
 

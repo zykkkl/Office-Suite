@@ -39,7 +39,10 @@ class ConditionNode(NodeExecutor):
         import re
         match = re.match(r'(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)', expr.strip())
         if not match:
-            return bool(expr)
+            raise ValueError(
+                f"condition: 无法解析表达式 {expr!r}，"
+                f"支持格式: '<左值> <操作符> <右值>'，操作符: ==, !=, >, <, >=, <="
+            )
 
         left_str, op, right_str = match.groups()
 

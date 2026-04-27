@@ -1,8 +1,13 @@
 """流水线执行上下文 — 节点间共享数据的传递媒介"""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from office_suite.hub.resolver import ResourceResolver
 
 
 @dataclass
@@ -22,6 +27,15 @@ class PipelineContext:
     output_dir: Path = field(default_factory=lambda: Path.cwd() / "output")
     # 运行时日志
     logs: list[str] = field(default_factory=list)
+    # 共享资源解析器（跨节点复用 LRU 缓存）
+    resource_resolver: Any = field(default=None)
+
+    def get_resource_resolver(self) -> "ResourceResolver":
+        """获取（或懒初始化）共享 ResourceResolver"""
+        if self.resource_resolver is None:
+            from office_suite.hub.resolver import ResourceResolver
+            self.resource_resolver = ResourceResolver()
+        return self.resource_resolver
 
     def set_output(self, node_name: str, value: Any):
         """设置节点输出"""

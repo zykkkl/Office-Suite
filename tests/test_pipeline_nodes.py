@@ -4,6 +4,8 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from office_suite.pipeline.nodes import list_registered, get_handler
 from office_suite.pipeline.nodes.base import NodeExecutor
 from office_suite.pipeline.core.graph import PipelineGraph, PipelineNode
@@ -391,3 +393,208 @@ graph:
     assert results["step1"]["status"] == "success"
     assert results["step2"]["status"] == "success"
     assert results["step2"]["result"]["condition"] is True
+
+
+# ── TransformNode 错误路径 ─────────────────────────────────
+
+def test_transform_missing_input():
+    """transform 缺少 input/data 参数抛 ValueError"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="缺少 input/data 参数"):
+        handler.execute({"transform": "passthrough"}, ctx)
+
+
+def test_transform_unknown_type():
+    """transform 未知转换类型抛 ValueError"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="未知转换类型"):
+        handler.execute({"input": [1, 2, 3], "transform": "unknown_op"}, ctx)
+
+
+def test_transform_aggregate_unknown_agg():
+    """transform aggregate 未知聚合操作抛 ValueError"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="未知聚合操作"):
+        handler.execute({
+            "input": [{"x": 1}, {"x": 2}],
+            "transform": "aggregate",
+            "field": "x",
+            "agg": "median",
+        }, ctx)
+
+
+def test_transform_filter_unknown_op():
+    """transform filter 未知操作符抛 ValueError"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="不支持的过滤操作符"):
+        handler.execute({
+            "input": [{"score": 80}],
+            "transform": "filter",
+            "field": "score",
+            "op": "=>",
+            "value": 70,
+        }, ctx)
+
+
+def test_transform_filter_non_list_input():
+    """transform filter 非列表输入原样返回"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    result = handler.execute({
+        "input": {"score": 80},
+        "transform": "filter",
+        "field": "score",
+        "op": "gte",
+        "value": 70,
+    }, ctx)
+    assert result == {"score": 80}
+
+
+def test_transform_aggregate_non_list_input():
+    """transform aggregate 非列表输入原样返回"""
+    handler = get_handler("transform")
+    ctx = PipelineContext()
+    result = handler.execute({
+        "input": "not_a_list",
+        "transform": "aggregate",
+        "field": "x",
+        "agg": "sum",
+    }, ctx)
+    assert result == "not_a_list"
+
+
+# ── RetryNode 退避策略 + 配置错误 ─────────────────────────
+
+def test_retry_linear_backoff(monkeypatch):
+    """retry 节点 — 线性退避延迟序列"""
+    delays = []
+    monkeypatch.setattr("office_suite.pipeline.nodes.control.retry.time.sleep", delays.append)
+
+    call_count = 0
+
+    def failing(params, ctx):
+        nonlocal call_count
+        call_count += 1
+        raise RuntimeError(f"fail #{call_count}")
+
+    handler = get_handler("retry")
+    ctx = PipelineContext()
+    result = handler.execute({
+        "executor": failing,
+        "max_retries": 3,
+        "initial_delay": 0.1,
+        "backoff": "linear",
+    }, ctx)
+
+    assert result["success"] is False
+    assert result["attempts"] == 4          # 1 初始 + 3 重试
+    assert delays == pytest.approx([0.1, 0.2, 0.3])
+
+
+def test_retry_exponential_backoff(monkeypatch):
+    """retry 节点 — 指数退避延迟序列"""
+    delays = []
+    monkeypatch.setattr("office_suite.pipeline.nodes.control.retry.time.sleep", delays.append)
+
+    call_count = 0
+
+    def failing(params, ctx):
+        nonlocal call_count
+        call_count += 1
+        raise RuntimeError(f"fail #{call_count}")
+
+    handler = get_handler("retry")
+    ctx = PipelineContext()
+    result = handler.execute({
+        "executor": failing,
+        "max_retries": 3,
+        "initial_delay": 0.1,
+        "backoff": "exponential",
+    }, ctx)
+
+    assert result["success"] is False
+    assert result["attempts"] == 4
+    assert delays == pytest.approx([0.1, 0.2, 0.4])
+
+
+def test_retry_missing_target_and_executor():
+    """retry 节点 — 缺少 target / executor 抛 ValueError"""
+    handler = get_handler("retry")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="缺少 target 或 executor 参数"):
+        handler.execute({"max_retries": 1}, ctx)
+
+
+def test_retry_non_callable_executor():
+    """retry 节点 — executor 非可调用时抛 ValueError"""
+    handler = get_handler("retry")
+    ctx = PipelineContext()
+    with pytest.raises(ValueError, match="可调用"):
+        handler.execute({"executor": "not_callable", "max_retries": 1}, ctx)
+
+
+# ── 并行调度 fail_fast ────────────────────────────────────
+
+def _make_fail_graph(fail_fast: bool) -> PipelineGraph:
+    """构造两层 DAG：第一层一个失败节点 + 一个成功节点，第二层各依赖一个"""
+    graph = PipelineGraph(
+        name="fail_fast_test",
+        config={"parallelism": 4, "fail_fast": fail_fast},
+    )
+    # 第一层
+    graph.add_node(PipelineNode(
+        name="fail_1",
+        node_type="transform",
+        params={"input": None, "transform": "passthrough"},  # input=None 会抛 ValueError
+    ))
+    graph.add_node(PipelineNode(
+        name="ok_1",
+        node_type="transform",
+        params={"input": "ok", "transform": "passthrough"},
+    ))
+    # 第二层
+    graph.add_node(PipelineNode(
+        name="downstream_fail",
+        node_type="transform",
+        depends_on=["fail_1"],
+        params={"input": "d1", "transform": "passthrough"},
+    ))
+    graph.add_node(PipelineNode(
+        name="downstream_ok",
+        node_type="transform",
+        depends_on=["ok_1"],
+        params={"input": "d2", "transform": "passthrough"},
+    ))
+    return graph
+
+
+def test_parallel_fail_fast_stops_downstream():
+    """并行调度 fail_fast=True — 前层失败后后续层不执行"""
+    graph = _make_fail_graph(fail_fast=True)
+    scheduler = PipelineScheduler(graph)
+    results = scheduler.run_parallel()
+
+    assert results["fail_1"]["status"] == "failed"
+    assert results["ok_1"]["status"] == "success"
+    # fail_fast=True：后续层应被跳过（skipped）或未执行（pending）
+    assert results["downstream_fail"]["status"] in ("skipped", "pending")
+    assert results["downstream_ok"]["status"] in ("skipped", "pending")
+
+
+def test_parallel_no_fail_fast_runs_downstream():
+    """并行调度 fail_fast=False — 前层失败后后续层仍执行"""
+    graph = _make_fail_graph(fail_fast=False)
+    scheduler = PipelineScheduler(graph)
+    results = scheduler.run_parallel()
+
+    assert results["fail_1"]["status"] == "failed"
+    assert results["ok_1"]["status"] == "success"
+    # fail_fast=False：依赖成功节点的下游应继续执行
+    assert results["downstream_ok"]["status"] == "success"
+    # 依赖失败节点的下游因依赖未满足被跳过
+    assert results["downstream_fail"]["status"] == "skipped"
+
