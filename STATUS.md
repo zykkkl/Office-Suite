@@ -12,61 +12,47 @@ PPTX 渲染器核心完善。60 项测试全部通过。
 ## Phase 3 ✅ 已完成
 资源中枢 + 基础流水线。50 项测试全部通过。
 
-### 新增模块
-
-| 模块 | 文件 | 说明 |
-|------|------|------|
-| 资源注册表 | `hub/registry.py` | Provider 注册 + 资源解析 + 降级策略 |
-| 本地文件 Provider | `hub/providers/local_provider.py` | file:// 路径解析 + MIME 推断 |
-| 内联数据 Provider | `hub/providers/inline_provider.py` | data: URI + dict 结构化数据 |
-| 资源解析器 | `hub/resolver.py` | 统一资源解析入口 + 降级链 |
-| DAG 图结构 | `pipeline/core/graph.py` | 节点依赖 + 拓扑排序 + 并行层级 |
-| 流水线上下文 | `pipeline/core/context.py` | 节点间数据传递 + 变量解析 |
-| 流水线调度器 | `pipeline/core/scheduler.py` | 拓扑排序 + 顺序执行 + 自定义执行器 |
-| 流水线 DSL 解析 | `pipeline/parser.py` | YAML → PipelineGraph |
-
 ## Phase 4 ✅ 已完成
 DOCX + XLSX 渲染器。24 项测试全部通过。
-
-### 新增模块
-
-| 模块 | 文件 | 说明 |
-|------|------|------|
-| DOCX 渲染器 | `renderer/docx/document.py` | python-docx 渲染，支持文本/表格/图片/形状降级 |
-| XLSX 渲染器 | `renderer/xlsx/workbook.py` | openpyxl 渲染，支持 Sheet/数据/图表/多 Sheet |
-
-### 能力声明
-
-| 格式 | 支持节点 | 不支持 | 降级策略 |
-|------|---------|--------|---------|
-| DOCX | TEXT, TABLE, IMAGE, GROUP | CHART, 动画, 艺术字 | arch/wave→plain_text, gradient→solid |
-| XLSX | TEXT, TABLE, CHART, GROUP | IMAGE, 动画 | gradient→solid, shadow→none |
 
 ## Phase 5 ✅ 已完成
 AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
 
+## Phase 6 ✅ 已完成
+主题 + 组件库。57 项测试全部通过。
+
 ### 新增模块
 
 | 模块 | 文件 | 说明 |
 |------|------|------|
-| 意图解析 | `ai/intent.py` | NL → DesignBrief，关键词匹配提取文档类型/风格/情绪/强调点 |
-| 设计建议 | `ai/suggest.py` | 配色方案(5种预设) + 布局推荐 + 排版建议 |
-| 质量评审 | `ai/critique.py` | WCAG 对比度检查 + 层次检查 + 一致性检查 + 布局检查 |
+| 主题引擎 | `themes/engine.py` | Theme 数据结构 + 注册表 + 继承/混合 |
+| Fluent 主题 | `themes/fluent.py` | Microsoft Fluent Design (light + dark) |
+| 通用主题 | `themes/universal.py` | 跨行业通用主题 (light + dark) |
+| 组件注册表 | `components/registry.py` | 组件注册 + 调用 + 参数 schema |
+| 图表卡片 | `components/builtins/chart_card.py` | 标题 + 图表 + 注释 |
+| 统计卡片 | `components/builtins/stat_card.py` | 大数字 + 标签 + 趋势 |
+| 时间线 | `components/builtins/timeline.py` | 垂直事件时间线 |
+| 对比 | `components/builtins/comparison.py` | 左右两栏对比 |
+| 信息图 | `components/builtins/infographic.py` | 标题 + 指标网格 |
 
-### 功能清单
+### 主题系统
 
-| 功能 | 说明 |
-|------|------|
-| 文档类型识别 | PPT/Word/Excel 关键词 → presentation/document/spreadsheet |
-| 风格识别 | 科技深色/商务浅色/极简/创意/学术 5 种预设 |
-| 情绪提取 | professional/modern/warm/playful/serious/data_driven |
-| 配色推荐 | 5 套预设配色 + 主色覆盖 + 背景强制切换 |
-| 布局推荐 | 封面/内容/图表/对比 4 种演示布局 + 文档/表格布局 |
-| 排版推荐 | 每种风格对应字体/字号/行高预设 |
-| 对比度检查 | WCAG 2.1 相对亮度计算，4.5:1 最低阈值 |
-| 层次检查 | 标题/正文字号差异 >= 8pt |
-| 一致性检查 | 字号种类 <= 4 种 |
-| 质量分 | 0-100 分制，ERROR -15, WARNING -5, INFO -1 |
+| 主题 | 模式 | 主色 | 字体 |
+|------|------|------|------|
+| Fluent | light | #0078D4 | Segoe UI |
+| Fluent Dark | dark | #60CDFF | Segoe UI |
+| Universal | light | #1E3A5F | Microsoft YaHei UI |
+| Universal Dark | dark | #60A5FA | Microsoft YaHei UI |
+
+### 组件库
+
+| 组件 | 用途 | 参数 |
+|------|------|------|
+| chart_card | 图表卡片 | title, chart_type, categories, series, caption |
+| stat_card | 统计卡片 | value, label, trend, trend_value |
+| timeline | 时间线 | events[{date, title, description}] |
+| comparison | 对比 | left_title, left_items, right_title, right_items |
+| infographic | 信息图 | title, metrics[{value, label}], columns |
 
 ## 测试汇总
 
@@ -78,7 +64,8 @@ AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
 | Phase 3 | 50 | ✅ |
 | Phase 4 | 24 | ✅ |
 | Phase 5 | 42 | ✅ |
-| **总计** | **245** | **全绿** |
+| Phase 6 | 57 | ✅ |
+| **总计** | **302** | **全绿** |
 
-## 下一步 (Phase 6)
-主题 + 组件库 — Fluent 主题 + 通用主题 + 内置组件（图表/卡片/时间线/对比/信息图）。
+## 下一步 (Phase 7)
+PDF + HTML 渲染器。
