@@ -110,6 +110,19 @@ def parse_element(raw: dict[str, Any]) -> Element:
     if isinstance(position_raw, str) and position_raw == "background":
         position_raw = None  # 特殊标记
 
+    # extra 字段：收集所有非标准属性
+    # 特殊处理：YAML 中的 "extra" 键会展开合并，避免嵌套
+    EXCLUDE_KEYS = {
+        "type", "content", "source", "style", "position",
+        "data_ref", "chart_type", "query", "prompt",
+        "size", "opacity", "filter", "animation", "children",
+    }
+    extra = {k: v for k, v in raw.items() if k not in EXCLUDE_KEYS}
+    # 如果 YAML 中有显式的 "extra" 键，展开合并
+    if "extra" in extra and isinstance(extra["extra"], dict):
+        nested = extra.pop("extra")
+        extra.update(nested)
+
     return Element(
         type=raw.get("type", "text"),
         content=raw.get("content"),
@@ -125,10 +138,7 @@ def parse_element(raw: dict[str, Any]) -> Element:
         filter=raw.get("filter"),
         animation=raw.get("animation"),
         children=[parse_element(c) for c in raw.get("children", [])],
-        extra={k: v for k, v in raw.items()
-               if k not in {"type", "content", "source", "style", "position",
-                            "data_ref", "chart_type", "query", "prompt",
-                            "size", "opacity", "filter", "animation", "children"}},
+        extra=extra,
     )
 
 

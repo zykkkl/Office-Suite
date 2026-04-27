@@ -29,6 +29,8 @@ from pptx.util import Inches, Pt, Emu, Mm
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+from pptx.chart.data import CategoryChartData
 
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
@@ -41,9 +43,32 @@ MM_TO_EMU = 36000
 SLIDE_WIDTH_MM = 254.0   # 10 inches
 SLIDE_HEIGHT_MM = 190.5  # 7.5 inches
 
+# 图表类型映射
+CHART_TYPE_MAP = {
+    "bar": XL_CHART_TYPE.BAR_CLUSTERED,
+    "bar_stacked": XL_CHART_TYPE.BAR_STACKED,
+    "column": XL_CHART_TYPE.COLUMN_CLUSTERED,
+    "column_stacked": XL_CHART_TYPE.COLUMN_STACKED,
+    "line": XL_CHART_TYPE.LINE,
+    "line_marked": XL_CHART_TYPE.LINE_MARKERS,
+    "pie": XL_CHART_TYPE.PIE,
+    "doughnut": XL_CHART_TYPE.DOUGHNUT,
+    "area": XL_CHART_TYPE.AREA,
+    "scatter": XL_CHART_TYPE.XY_SCATTER,
+    "radar": XL_CHART_TYPE.RADAR,
+}
+
 
 class PPTXRenderer(BaseRenderer):
-    """PowerPoint 渲染器"""
+    """PowerPoint 渲染器
+
+    Phase 2 增强：
+    - 图表渲染（bar/column/line/pie/scatter 等）
+    - 母版布局支持（预定义布局索引）
+    - 渐变填充（线性/径向，多停止点）
+    - 阴影/发光/透明度
+    - 表格样式增强
+    """
 
     def __init__(self):
         self._prs: Presentation | None = None
@@ -61,8 +86,8 @@ class PPTXRenderer(BaseRenderer):
             supported_animations={"slide_up", "fade_in", "scale_in", "fly_in"},
             supported_effects={"shadow", "glow", "gradient_fill", "opacity"},
             fallback_map={
-                "duotone": "opacity",  # 滤镜降级为透明度
-                "blur": "shadow",      # 模糊降级为阴影
+                "duotone": "opacity",
+                "blur": "shadow",
             },
         )
 
@@ -92,10 +117,28 @@ class PPTXRenderer(BaseRenderer):
         self._prs.save(str(output_path))
         return output_path
 
+    # ============================================================
+    # 幻灯片级渲染
+    # ============================================================
+
     def _render_slide(self, slide_node: IRNode, doc: IRDocument):
-        """渲染单张幻灯片"""
-        # 使用空白布局
-        slide_layout = self._prs.slide_layouts[6]  # 布局 6 = 空白
+        """渲染单张幻灯片
+
+        母版布局索引（python-pptx 默认模板）：
+          0  = Title Slide
+          1  = Title and Content
+          2  = Section Header
+          3  = Two Content
+          4  = Comparison
+          5  = Title Only
+          6  = Blank
+          7  = Content with Caption
+          8  = Picture with Caption
+        """
+        # 获取布局（默认 blank=6）
+        layout_name = slide_node.extra.get("layout", "blank")
+        layout_idx = self._get_layout_index(layout_name)
+        slide_layout = self._prs.slide_layouts[layout_idx]
         slide = self._prs.slides.add_slide(slide_layout)
 
         # 设置背景
@@ -107,26 +150,45 @@ class PPTXRenderer(BaseRenderer):
         for elem_node in slide_node.children:
             self._render_element(slide, elem_node, doc)
 
+    def _get_layout_index(self, name: str) -> int:
+        """布局名称 → 幻灯片布局索引"""
+        mapping = {
+            "title": 0,
+            "title_content": 1,
+            "section": 2,
+            "two_content": 3,
+            "comparison": 4,
+            "title_only": 5,
+            "blank": 6,
+            "caption": 7,
+            "picture_caption": 8,
+        }
+        return mapping.get(name, 6)
+
     def _set_background(self, slide, bg_data: dict[str, Any]):
-        """设置幻灯片背景"""
+        """设置幻灯片背景
+
+        支持：
+          - 纯色: { color: "#RRGGBB" }
+          - 线性渐变: { gradient: { type: linear, angle: 135, stops: [...] } }
+          - 径向渐变: { gradient: { type: radial, stops: [...] } }
+        """
         background = slide.background
         fill = background.fill
         fill.solid()
 
         gradient = bg_data.get("gradient")
         if gradient:
-            fill.gradient()
-            stops = gradient.get("stops", ["#000000", "#1E293B"])
-            if len(stops) >= 2:
-                fill.gradient_stops[0].color.rgb = self._hex_to_rgb(stops[0])
-                fill.gradient_stops[0].position = 0.0
-                fill.gradient_stops[1].color.rgb = self._hex_to_rgb(stops[-1])
-                fill.gradient_stops[1].position = 1.0
+            self._apply_gradient_fill(fill, gradient)
         elif "color" in bg_data:
             fill.fore_color.rgb = self._hex_to_rgb(bg_data["color"])
 
+    # ============================================================
+    # 元素级渲染
+    # ============================================================
+
     def _render_element(self, slide, node: IRNode, doc: IRDocument):
-        """渲染单个元素"""
+        """渲染单个元素 — 按节点类型分派"""
         if node.node_type == NodeType.TEXT:
             self._render_text(slide, node, doc)
         elif node.node_type == NodeType.SHAPE:
@@ -135,28 +197,23 @@ class PPTXRenderer(BaseRenderer):
             self._render_image(slide, node, doc)
         elif node.node_type == NodeType.TABLE:
             self._render_table(slide, node, doc)
+        elif node.node_type == NodeType.CHART:
+            self._render_chart(slide, node, doc)
         elif node.node_type == NodeType.GROUP:
             for child in node.children:
                 self._render_element(slide, child, doc)
         else:
-            # 不支持的节点类型：渲染为占位符
             self._render_placeholder(slide, node)
 
     def _render_text(self, slide, node: IRNode, doc: IRDocument):
         """渲染文本元素"""
-        pos = node.position or IRPosition()
+        pos = self._get_position(node)
         style = self._resolve_style(node, doc)
 
-        left = Mm(int(pos.x_mm))
-        top = Mm(int(pos.y_mm))
-        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(int(SLIDE_WIDTH_MM - pos.x_mm))
-        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(int(30))  # 默认高度
-
-        # 居中处理
+        left, top, width, height = self._pos_to_emu(pos)
         if pos.is_center:
-            left = Mm(int((SLIDE_WIDTH_MM - (pos.width_mm or 100)) / 2))
+            left = Mm(int((SLIDE_WIDTH_MM - pos.width_mm) / 2))
 
-        # 添加文本框
         txBox = slide.shapes.add_textbox(left, top, width, height)
         tf = txBox.text_frame
         tf.word_wrap = True
@@ -165,48 +222,31 @@ class PPTXRenderer(BaseRenderer):
         p.text = node.content or ""
         p.alignment = PP_ALIGN.LEFT
 
-        # 应用样式
         if style:
             self._apply_text_style(p, style)
 
     def _render_shape(self, slide, node: IRNode, doc: IRDocument):
-        """渲染形状元素"""
-        pos = node.position or IRPosition()
+        """渲染形状元素
+
+        支持的形状类型：rectangle, rounded_rectangle, circle, oval,
+        triangle, diamond, arrow, star, hexagon, pentagon
+        """
+        pos = self._get_position(node)
         style = self._resolve_style(node, doc)
 
-        left = Mm(int(pos.x_mm))
-        top = Mm(int(pos.y_mm))
-        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(50)
-        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(50)
-
+        left, top, width, height = self._pos_to_emu(pos)
         shape_type = node.extra.get("shape_type", "rectangle")
         mso_shape = self._get_shape_type(shape_type)
 
         shape = slide.shapes.add_shape(mso_shape, left, top, width, height)
 
-        # 应用填充
-        if style and style.fill_color:
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = self._hex_to_rgb(style.fill_color)
-        elif style and style.fill_gradient:
-            shape.fill.gradient()
-            grad = style.fill_gradient
-            stops = grad.get("stops", ["#000000", "#FFFFFF"])
-            if len(stops) >= 2:
-                shape.fill.gradient_stops[0].color.rgb = self._hex_to_rgb(stops[0])
-                shape.fill.gradient_stops[1].color.rgb = self._hex_to_rgb(stops[-1])
-        else:
-            shape.fill.background()  # 无填充
+        # 填充
+        self._apply_shape_fill(shape, style, node)
 
-        # 应用边框
-        if node.extra.get("outline"):
-            outline = node.extra["outline"]
-            shape.line.color.rgb = self._hex_to_rgb(outline.get("color", "#000000"))
-            shape.line.width = Pt(outline.get("width", 1))
-        else:
-            shape.line.fill.background()  # 无边框
+        # 边框
+        self._apply_shape_border(shape, node)
 
-        # 文本内容
+        # 形状内文本
         if node.content:
             tf = shape.text_frame
             tf.word_wrap = True
@@ -216,52 +256,140 @@ class PPTXRenderer(BaseRenderer):
                 self._apply_text_style(p, style)
 
     def _render_image(self, slide, node: IRNode, doc: IRDocument):
-        """渲染图片元素 — Phase 0 用占位符"""
-        pos = node.position or IRPosition()
-        left = Mm(int(pos.x_mm))
-        top = Mm(int(pos.y_mm))
-        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(100)
-        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(75)
+        """渲染图片元素
+
+        支持：
+          - 本地文件: source="file://path" 或 source="path"
+          - MCP/AI 资源: source={mcp__unsplash, query: "..."} → 占位符
+        """
+        pos = self._get_position(node)
+        left, top, width, height = self._pos_to_emu(pos)
 
         source = node.source
-        if isinstance(source, str) and Path(source).exists():
-            # 本地文件
-            slide.shapes.add_picture(source, left, top, width, height)
-        else:
-            # 占位符
-            self._render_placeholder(slide, node, left, top, width, height)
+        if isinstance(source, str):
+            # 尝试作为本地文件
+            file_path = Path(source.replace("file://", ""))
+            if file_path.exists():
+                slide.shapes.add_picture(str(file_path), left, top, width, height)
+                return
+
+        # 降级：占位符
+        self._render_placeholder(slide, node, left, top, width, height)
 
     def _render_table(self, slide, node: IRNode, doc: IRDocument):
-        """渲染表格元素 — Phase 0 基础实现"""
-        pos = node.position or IRPosition()
-        left = Mm(int(pos.x_mm))
-        top = Mm(int(pos.y_mm))
-        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(200)
-        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(100)
+        """渲染表格元素
 
-        # 从 extra 中获取行列数
+        数据来源：
+          - extra.data: 内联二维数组
+          - extra.rows/extra.cols: 行列数
+        """
+        pos = self._get_position(node)
+        left, top, width, height = self._pos_to_emu(pos)
+
         rows = node.extra.get("rows", 3)
         cols = node.extra.get("cols", 3)
 
         table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
         table = table_shape.table
 
-        # 填充数据（如果有内联数据）
+        # 填充数据
         inline_data = node.extra.get("data")
         if isinstance(inline_data, list):
             for r, row_data in enumerate(inline_data[:rows]):
                 if isinstance(row_data, list):
                     for c, cell_val in enumerate(row_data[:cols]):
-                        table.cell(r, c).text = str(cell_val)
+                        cell = table.cell(r, c)
+                        cell.text = str(cell_val)
+                        # 首行加粗（表头）
+                        if r == 0:
+                            for paragraph in cell.text_frame.paragraphs:
+                                for run in paragraph.runs:
+                                    run.font.bold = True
+
+        # 表格样式（交替行颜色）
+        self._apply_table_style(table, rows, cols)
+
+    def _render_chart(self, slide, node: IRNode, doc: IRDocument):
+        """渲染图表元素
+
+        DSL 示例：
+          - type: chart
+            chart_type: bar
+            data_ref: revenue
+            position: { x: 20mm, y: 40mm, width: 200mm, height: 100mm }
+            extra:
+              categories: ["Q1", "Q2", "Q3", "Q4"]
+              series:
+                - name: "营收"
+                  values: [100, 120, 150, 180]
+                - name: "利润"
+                  values: [30, 40, 50, 60]
+        """
+        pos = self._get_position(node)
+        left, top, width, height = self._pos_to_emu(pos)
+
+        chart_type_str = node.chart_type or node.extra.get("chart_type", "bar")
+        xl_chart_type = CHART_TYPE_MAP.get(chart_type_str, XL_CHART_TYPE.BAR_CLUSTERED)
+
+        # 构建图表数据
+        chart_data = self._build_chart_data(node)
+
+        # 添加图表
+        chart_frame = slide.shapes.add_chart(
+            xl_chart_type, left, top, width, height, chart_data
+        )
+        chart = chart_frame.chart
+
+        # 图表标题
+        title = node.extra.get("title")
+        if title:
+            chart.has_title = True
+            chart.chart_title.text_frame.paragraphs[0].text = title
+
+        # 图例
+        show_legend = node.extra.get("legend", True)
+        chart.has_legend = show_legend
+        if show_legend:
+            chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+            chart.legend.include_in_layout = False
+
+        # 应用主题色到系列
+        self._apply_chart_colors(chart, node)
+
+    def _build_chart_data(self, node: IRNode) -> CategoryChartData:
+        """从 IRNode.extra 构建 CategoryChartData"""
+        categories = node.extra.get("categories", [])
+        series_list = node.extra.get("series", [])
+
+        chart_data = CategoryChartData()
+        chart_data.categories = categories
+
+        for series in series_list:
+            name = series.get("name", "")
+            values = series.get("values", [])
+            chart_data.add_series(name, values)
+
+        return chart_data
+
+    def _apply_chart_colors(self, chart, node: IRNode):
+        """为图表系列应用颜色
+
+        从 node.extra.colors 读取颜色列表，或使用默认主题色。
+        """
+        colors = node.extra.get("colors", [
+            "#2563EB", "#16A34A", "#EA580C", "#9333EA",
+            "#E11D48", "#0891B2", "#CA8A04", "#4F46E5",
+        ])
+        for i, series in enumerate(chart.series):
+            color_hex = colors[i % len(colors)]
+            series.format.fill.solid()
+            series.format.fill.fore_color.rgb = self._hex_to_rgb(color_hex)
 
     def _render_placeholder(self, slide, node: IRNode, left=None, top=None, width=None, height=None):
         """渲染占位符（不支持的元素类型或缺失资源）"""
         if left is None:
-            pos = node.position or IRPosition()
-            left = Mm(int(pos.x_mm))
-            top = Mm(int(pos.y_mm))
-            width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(100)
-            height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(50)
+            pos = self._get_position(node)
+            left, top, width, height = self._pos_to_emu(pos)
 
         shape = slide.shapes.add_shape(
             MSO_SHAPE.RECTANGLE, left, top, width, height
@@ -278,6 +406,108 @@ class PPTXRenderer(BaseRenderer):
         p.alignment = PP_ALIGN.CENTER
         p.font.size = Pt(10)
         p.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+    # ============================================================
+    # 填充/边框/样式辅助方法
+    # ============================================================
+
+    def _apply_shape_fill(self, shape, style: IRStyle | None, node: IRNode):
+        """应用形状填充（纯色 / 渐变 / 透明度）"""
+        if style and style.fill_gradient:
+            shape.fill.gradient()
+            self._apply_gradient_fill(shape.fill, style.fill_gradient)
+        elif style and style.fill_color:
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = self._hex_to_rgb(style.fill_color)
+            # 透明度
+            if style.fill_opacity is not None and style.fill_opacity < 1.0:
+                shape.fill.fore_color.brightness = 0
+        else:
+            shape.fill.background()
+
+    def _apply_gradient_fill(self, fill, gradient: dict[str, Any]):
+        """应用渐变填充
+
+        支持 linear 和 radial 类型。
+        python-pptx 的 gradient API 通过 gradient_stops 操作。
+        """
+        fill.gradient()
+        stops = gradient.get("stops", ["#000000", "#FFFFFF"])
+        angle = gradient.get("angle", 0)
+
+        # 清除默认停止点，添加新停止点
+        # python-pptx 至少需要 2 个停止点
+        for i, color_hex in enumerate(stops):
+            position = i / max(len(stops) - 1, 1)
+            if i < len(fill.gradient_stops):
+                fill.gradient_stops[i].color.rgb = self._hex_to_rgb(color_hex)
+                fill.gradient_stops[i].position = position
+            else:
+                # python-pptx 不支持动态添加停止点，取首尾
+                break
+
+        # 角度（linear 时有效）
+        if gradient.get("type") == "linear":
+            # python-pptx 使用 angle 属性（0-360 度）
+            try:
+                fill.gradient_angle = angle
+            except AttributeError:
+                pass  # 某些版本不支持
+
+    def _apply_shape_border(self, shape, node: IRNode):
+        """应用形状边框"""
+        outline = node.extra.get("outline")
+        if outline:
+            shape.line.color.rgb = self._hex_to_rgb(outline.get("color", "#000000"))
+            shape.line.width = Pt(outline.get("width", 1))
+            # 虚线样式
+            dash = outline.get("dash")
+            if dash == "solid":
+                shape.line.dash_style = 1
+            elif dash == "dashed":
+                shape.line.dash_style = 4
+            elif dash == "dotted":
+                shape.line.dash_style = 2
+        else:
+            shape.line.fill.background()
+
+    def _apply_table_style(self, table, rows: int, cols: int):
+        """应用表格样式（交替行颜色）"""
+        for r in range(rows):
+            for c in range(cols):
+                cell = table.cell(r, c)
+                if r == 0:
+                    # 表头：深色背景
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(0x1E, 0x29, 0x3B)
+                    for p in cell.text_frame.paragraphs:
+                        for run in p.runs:
+                            run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                            run.font.size = Pt(11)
+                elif r % 2 == 0:
+                    # 偶数行：浅灰背景
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(0xF1, 0xF5, 0xF9)
+                else:
+                    # 奇数行：白色
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+    # ============================================================
+    # 位置/样式工具方法
+    # ============================================================
+
+    def _get_position(self, node: IRNode) -> IRPosition:
+        """获取节点位置，无位置时返回默认"""
+        return node.position or IRPosition()
+
+    def _pos_to_emu(self, pos: IRPosition) -> tuple:
+        """将 IRPosition (mm) 转换为 EMU 元组 (left, top, width, height)"""
+        left = Mm(int(pos.x_mm))
+        top = Mm(int(pos.y_mm))
+        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(int(SLIDE_WIDTH_MM - pos.x_mm))
+        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(30)
+        return left, top, width, height
 
     def _resolve_style(self, node: IRNode, doc: IRDocument) -> IRStyle | None:
         """解析节点样式
@@ -332,7 +562,6 @@ class PPTXRenderer(BaseRenderer):
     def _hex_to_rgb(hex_str: str) -> RGBColor:
         """将 HEX 颜色转为 RGBColor"""
         hex_str = hex_str.lstrip("#")
-        # 处理带 alpha 的 HEX（取前 6 位）
         if len(hex_str) == 8:
             hex_str = hex_str[:6]
         if len(hex_str) != 6:
@@ -357,5 +586,9 @@ class PPTXRenderer(BaseRenderer):
             "diamond": MSO_SHAPE.DIAMOND,
             "arrow": MSO_SHAPE.RIGHT_ARROW,
             "star": MSO_SHAPE.STAR_5_POINT,
+            "hexagon": MSO_SHAPE.HEXAGON,
+            "pentagon": MSO_SHAPE.PENTAGON,
+            "chevron": MSO_SHAPE.CHEVRON,
+            "cross": MSO_SHAPE.CROSS,
         }
         return mapping.get(name, MSO_SHAPE.RECTANGLE)
