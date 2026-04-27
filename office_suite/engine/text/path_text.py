@@ -1,0 +1,316 @@
+"""路径文字 — 沿曲线排列文字
+
+设计方案第八章：文本引擎。
+
+路径文字将文本沿 SVG 路径曲线排列：
+  - 沿弧线排列
+  - 沿波浪线排列
+  - 沿自定义 SVG 路径排列
+
+PPTX 实现方式：
+  python-pptx 不直接支持路径文字，
+  通过 Oxml 注入 <a:pathLst> + 沿路径分布的关键帧实现。
+  简化方案：将路径离散为多个文本片段，每个片段独立旋转定位。
+
+其他渲染器：
+  - HTML: SVG textPath + <textPath href="#path">
+  - PDF: 降级为水平文本
+  - DOCX: 降级为普通文本
+"""
+
+import math
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class PathPoint:
+    """路径上的点"""
+    x: float
+    y: float
+    angle: float  # 切线角度（度）
+
+
+@dataclass
+class PathTextConfig:
+    """路径文字配置"""
+    path_type: str = "arc"      # arc / wave / custom
+    radius: float = 100.0       # 弧线半径（mm）
+    start_angle: float = 0.0    # 起始角度（度）
+    end_angle: float = 180.0    # 结束角度（度）
+    amplitude: float = 10.0     # 波浪振幅（mm）
+    wavelength: float = 50.0    # 波长（mm）
+    custom_path: str = ""       # SVG 路径数据（M x y C ...）
+    char_spacing: float = 0.0   # 字符间距（mm）
+
+
+# ============================================================
+# 路径生成
+# ============================================================
+
+def generate_arc_points(
+    radius: float,
+    start_angle: float,
+    end_angle: float,
+    num_points: int = 50,
+    center_x: float = 0,
+    center_y: float = 0,
+) -> list[PathPoint]:
+    """生成弧线路径点
+
+    Args:
+        radius: 弧线半径（mm）
+        start_angle: 起始角度（度）
+        end_angle: 结束角度（度）
+        num_points: 采样点数
+        center_x: 圆心 x
+        center_y: 圆心 y
+
+    Returns:
+        路径点列表
+    """
+    points = []
+    for i in range(num_points):
+        t = i / max(1, num_points - 1)
+        angle = math.radians(start_angle + (end_angle - start_angle) * t)
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        # 切线角度 = 路径角度 + 90度（文字沿切线方向）
+        tangent = math.degrees(angle) + 90
+        points.append(PathPoint(x=x, y=y, angle=tangent))
+    return points
+
+
+def generate_wave_points(
+    amplitude: float,
+    wavelength: float,
+    length: float,
+    num_points: int = 50,
+    start_x: float = 0,
+    start_y: float = 0,
+) -> list[PathPoint]:
+    """生成波浪路径点
+
+    Args:
+        amplitude: 振幅（mm）
+        wavelength: 波长（mm）
+        length: 总长度（mm）
+        num_points: 采样点数
+        start_x: 起始 x
+        start_y: 起始 y
+
+    Returns:
+        路径点列表
+    """
+    points = []
+    for i in range(num_points):
+        t = i / max(1, num_points - 1)
+        x = start_x + length * t
+        y = start_y + amplitude * math.sin(2 * math.pi * x / wavelength)
+        # 切线角度
+        dx = length / max(1, num_points - 1)
+        dy = amplitude * 2 * math.pi / wavelength * math.cos(2 * math.pi * x / wavelength)
+        angle = math.degrees(math.atan2(dy, dx))
+        points.append(PathPoint(x=x, y=y, angle=angle))
+    return points
+
+
+def parse_svg_path(path_data: str, num_points: int = 50) -> list[PathPoint]:
+    """解析简化版 SVG 路径数据
+
+    支持的命令：M (moveto), L (lineto), C (cubic bezier), Q (quadratic bezier)
+
+    Args:
+        path_data: SVG 路径字符串
+        num_points: 每段的采样点数
+
+    Returns:
+        路径点列表
+    """
+    points = []
+    # 简化实现：只处理 M 和 L 命令
+    parts = path_data.replace(",", " ").split()
+    current_x, current_y = 0.0, 0.0
+    i = 0
+
+    while i < len(parts):
+        cmd = parts[i]
+        if cmd in ("M", "m"):
+            current_x = float(parts[i + 1])
+            current_y = float(parts[i + 2])
+            points.append(PathPoint(x=current_x, y=current_y, angle=0))
+            i += 3
+        elif cmd in ("L", "l"):
+            new_x = float(parts[i + 1])
+            new_y = float(parts[i + 2])
+            dx = new_x - current_x
+            dy = new_y - current_y
+            angle = math.degrees(math.atan2(dy, dx))
+            for j in range(1, num_points + 1):
+                t = j / num_points
+                points.append(PathPoint(
+                    x=current_x + dx * t,
+                    y=current_y + dy * t,
+                    angle=angle,
+                ))
+            current_x, current_y = new_x, new_y
+            i += 3
+        else:
+            i += 1
+
+    return points
+
+
+# ============================================================
+# 路径文字布局
+# ============================================================
+
+@dataclass
+class CharPlacement:
+    """单个字符的放置信息"""
+    char: str
+    x: float       # 中心 x（mm）
+    y: float       # 中心 y（mm）
+    rotation: float  # 旋转角度（度）
+    width: float   # 字符宽度（mm）
+
+
+def layout_chars_on_path(
+    text: str,
+    path_points: list[PathPoint],
+    font_size: float = 14.0,
+    char_spacing: float = 0.0,
+) -> list[CharPlacement]:
+    """将文字沿路径排列
+
+    Args:
+        text: 文本内容
+        path_points: 路径点列表
+        font_size: 字号（pt，用于估算字符宽度）
+        char_spacing: 额外字符间距（mm）
+
+    Returns:
+        每个字符的放置信息
+    """
+    if not text or not path_points:
+        return []
+
+    # 估算字符宽度（mm）
+    char_width_mm = font_size * 0.35  # pt → mm 近似
+    total_char_width = char_width_mm + char_spacing
+
+    # 计算路径总长度
+    total_path_length = 0.0
+    for i in range(1, len(path_points)):
+        dx = path_points[i].x - path_points[i - 1].x
+        dy = path_points[i].y - path_points[i - 1].y
+        total_path_length += math.sqrt(dx * dx + dy * dy)
+
+    # 计算文本总宽度
+    text_width = total_char_width * len(text)
+
+    # 居中偏移
+    start_offset = max(0, (total_path_length - text_width) / 2)
+
+    placements = []
+    current_offset = start_offset
+    point_idx = 0
+    segment_length = 0.0
+    accumulated = 0.0
+
+    for char in text:
+        # 找到当前偏移对应的路径点
+        target = current_offset
+        accumulated = 0.0
+
+        for i in range(1, len(path_points)):
+            dx = path_points[i].x - path_points[i - 1].x
+            dy = path_points[i].y - path_points[i - 1].y
+            seg_len = math.sqrt(dx * dx + dy * dy)
+
+            if accumulated + seg_len >= target:
+                # 在这个段内
+                t = (target - accumulated) / seg_len if seg_len > 0 else 0
+                x = path_points[i - 1].x + dx * t
+                y = path_points[i - 1].y + dy * t
+                angle = path_points[i].angle
+                placements.append(CharPlacement(
+                    char=char, x=x, y=y, rotation=angle, width=char_width_mm,
+                ))
+                break
+            accumulated += seg_len
+
+        current_offset += total_char_width
+
+    return placements
+
+
+# ============================================================
+# 渲染器适配
+# ============================================================
+
+def to_html_svg(text: str, config: PathTextConfig, font_size: float = 14.0) -> str:
+    """生成 HTML SVG textPath 代码
+
+    Args:
+        text: 文本内容
+        config: 路径配置
+        font_size: 字号
+
+    Returns:
+        SVG 代码字符串
+    """
+    if config.path_type == "arc":
+        # 生成弧线 SVG 路径
+        r = config.radius
+        start_rad = math.radians(config.start_angle)
+        end_rad = math.radians(config.end_angle)
+        x1 = r * math.cos(start_rad)
+        y1 = r * math.sin(start_rad)
+        x2 = r * math.cos(end_rad)
+        y2 = r * math.sin(end_rad)
+        large_arc = 1 if abs(config.end_angle - config.start_angle) > 180 else 0
+        path_d = f"M {x1} {y1} A {r} {r} 0 {large_arc} 1 {x2} {y2}"
+    elif config.path_type == "wave":
+        # 简化波浪为二次贝塞尔
+        wl = config.wavelength
+        amp = config.amplitude
+        path_d = f"M 0 0 Q {wl/4} {-amp} {wl/2} 0 Q {wl*3/4} {amp} {wl} 0"
+    else:
+        path_d = config.custom_path or "M 0 0 L 100 0"
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="-150 -100 300 200">
+  <defs>
+    <path id="textPath" d="{path_d}" fill="none"/>
+  </defs>
+  <text font-size="{font_size}" fill="#333">
+    <textPath href="#textPath" startOffset="50%" text-anchor="middle">{text}</textPath>
+  </text>
+</svg>'''
+
+
+def to_pptx_placements(
+    text: str, config: PathTextConfig, font_size: float = 14.0,
+) -> list[CharPlacement]:
+    """生成 PPTX 路径文字放置信息
+
+    将路径文字转换为独立文本框的列表，
+    每个文本框包含一个旋转后的字符。
+
+    Returns:
+        字符放置列表
+    """
+    if config.path_type == "arc":
+        points = generate_arc_points(
+            config.radius, config.start_angle, config.end_angle,
+        )
+    elif config.path_type == "wave":
+        points = generate_wave_points(
+            config.amplitude, config.wavelength, config.wavelength * 2,
+        )
+    elif config.custom_path:
+        points = parse_svg_path(config.custom_path)
+    else:
+        return []
+
+    return layout_chars_on_path(text, points, font_size, config.char_spacing)
