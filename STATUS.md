@@ -21,38 +21,29 @@ AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
 ## Phase 6 ✅ 已完成
 主题 + 组件库。57 项测试全部通过。
 
+## Phase 7 ✅ 已完成
+PDF + HTML 渲染器。30 项测试全部通过。
+
 ### 新增模块
 
 | 模块 | 文件 | 说明 |
 |------|------|------|
-| 主题引擎 | `themes/engine.py` | Theme 数据结构 + 注册表 + 继承/混合 |
-| Fluent 主题 | `themes/fluent.py` | Microsoft Fluent Design (light + dark) |
-| 通用主题 | `themes/universal.py` | 跨行业通用主题 (light + dark) |
-| 组件注册表 | `components/registry.py` | 组件注册 + 调用 + 参数 schema |
-| 图表卡片 | `components/builtins/chart_card.py` | 标题 + 图表 + 注释 |
-| 统计卡片 | `components/builtins/stat_card.py` | 大数字 + 标签 + 趋势 |
-| 时间线 | `components/builtins/timeline.py` | 垂直事件时间线 |
-| 对比 | `components/builtins/comparison.py` | 左右两栏对比 |
-| 信息图 | `components/builtins/infographic.py` | 标题 + 指标网格 |
+| PDF 渲染器 | `renderer/pdf/canvas.py` | reportlab 渲染，支持文本/表格/形状/图片占位/图表占位 |
+| HTML 渲染器 | `renderer/html/dom.py` | 独立 HTML + 内联 CSS，支持文本/表格/图片/形状/图表 |
 
-### 主题系统
+### 能力声明
 
-| 主题 | 模式 | 主色 | 字体 |
+| 格式 | 支持节点 | 不支持 | 降级策略 |
+|------|---------|--------|---------|
+| PDF | TEXT, TABLE, SHAPE, GROUP | IMAGE, CHART, 动画, 艺术字 | gradient→solid, image→placeholder |
+| HTML | TEXT, TABLE, IMAGE, SHAPE, CHART, GROUP | 动画, 艺术字 | arch/wave→plain_text |
+
+### 坐标映射
+
+| 格式 | 单位 | 原点 | 转换 |
 |------|------|------|------|
-| Fluent | light | #0078D4 | Segoe UI |
-| Fluent Dark | dark | #60CDFF | Segoe UI |
-| Universal | light | #1E3A5F | Microsoft YaHei UI |
-| Universal Dark | dark | #60A5FA | Microsoft YaHei UI |
-
-### 组件库
-
-| 组件 | 用途 | 参数 |
-|------|------|------|
-| chart_card | 图表卡片 | title, chart_type, categories, series, caption |
-| stat_card | 统计卡片 | value, label, trend, trend_value |
-| timeline | 时间线 | events[{date, title, description}] |
-| comparison | 对比 | left_title, left_items, right_title, right_items |
-| infographic | 信息图 | title, metrics[{value, label}], columns |
+| PDF | pt (1mm=2.835pt) | 左下角 | y = page_h - ir_y - h |
+| HTML | mm (CSS) | 左上角 | 直接映射 |
 
 ## 测试汇总
 
@@ -65,7 +56,8 @@ AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
 | Phase 4 | 24 | ✅ |
 | Phase 5 | 42 | ✅ |
 | Phase 6 | 57 | ✅ |
-| **总计** | **302** | **全绿** |
+| Phase 7 | 30 | ✅ |
+| **总计** | **332** | **全绿** |
 
-## 下一步 (Phase 7)
-PDF + HTML 渲染器。
+## 下一步 (Phase 8)
+动画 + 艺术字 — PPTX 入场/退出/强调动画 + WordArt 变换。
