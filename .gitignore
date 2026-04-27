@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output files (generated, not source)
+tests/output/*.pptx
+tests/output/*.docx
+tests/output/*.xlsx
+tests/output/*.pdf
+tests/output/*.html
+
+# Environment
+.env
+.env.local
+.claude/

@@ -1,0 +1,155 @@
+# Phase 0 技术验证：Hello World 演示
+version: "4.0"
+type: presentation
+theme: default
+
+styles:
+  title:
+    font:
+      family: "Microsoft YaHei UI"
+      size: 44
+      weight: 700
+      color: "#1E293B"
+  subtitle:
+    font:
+      family: "Microsoft YaHei UI"
+      size: 24
+      weight: 400
+      color: "#64748B"
+  accent:
+    font:
+      family: "Arial"
+      size: 18
+      weight: 600
+      color: "#2563EB"
+
+slides:
+  # 封面页
+  - layout: blank
+    background:
+      gradient:
+        type: linear
+        angle: 135
+        stops: ["#0F172A", "#1E293B"]
+    elements:
+      - type: text
+        content: "Office Suite 4.0"
+        style: title
+        position:
+          x: 50mm
+          y: 70mm
+          width: 154mm
+          height: 20mm
+          center: true
+
+      - type: text
+        content: "全媒体融合文档引擎"
+        style: subtitle
+        position:
+          x: 50mm
+          y: 95mm
+          width: 154mm
+          height: 12mm
+          center: true
+
+      - type: shape
+        shape_type: rectangle
+        position:
+          x: 100mm
+          y: 115mm
+          width: 54mm
+          height: 2mm
+        outline:
+          color: "#2563EB"
+          width: 0
+
+  # 内容页
+  - layout: blank
+    elements:
+      - type: text
+        content: "核心架构"
+        style: accent
+        position:
+          x: 20mm
+          y: 15mm
+          width: 214mm
+          height: 15mm
+
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "DSL 设计语言"
+        position:
+          x: 20mm
+          y: 40mm
+          width: 60mm
+          height: 35mm
+        style:
+          fill:
+            color: "#EFF6FF"
+          font:
+            family: "Microsoft YaHei UI"
+            size: 14
+            weight: 600
+            color: "#2563EB"
+
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "IR 中间表示"
+        position:
+          x: 97mm
+          y: 40mm
+          width: 60mm
+          height: 35mm
+        style:
+          fill:
+            color: "#F0FDF4"
+          font:
+            family: "Microsoft YaHei UI"
+            size: 14
+            weight: 600
+            color: "#16A34A"
+
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "格式渲染器"
+        position:
+          x: 174mm
+          y: 40mm
+          width: 60mm
+          height: 35mm
+        style:
+          fill:
+            color: "#FFF7ED"
+          font:
+            family: "Microsoft YaHei UI"
+            size: 14
+            weight: 600
+            color: "#EA580C"
+
+      - type: text
+        content: "支持格式: PPTX / DOCX / XLSX / PDF / HTML"
+        position:
+          x: 20mm
+          y: 90mm
+          width: 214mm
+          height: 10mm
+        style:
+          font:
+            family: "Microsoft YaHei UI"
+            size: 16
+            weight: 400
+            color: "#475569"
+
+      - type: table
+        position:
+          x: 20mm
+          y: 110mm
+          width: 214mm
+          height: 60mm
+        rows: 4
+        cols: 3
+        data:
+          - ["阶段", "内容", "天数"]
+          - ["Phase 0", "基础设施 + 技术验证", "2"]
+          - ["Phase 1", "DSL + IR 核心", "3"]
+          - ["Phase 2", "PPTX 渲染器", "5"]
