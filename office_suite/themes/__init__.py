@@ -25,6 +25,8 @@ from .engine import (
 # 确保内置主题被注册
 from . import fluent  # noqa: F401
 from . import universal  # noqa: F401
+from . import material3  # noqa: F401
+from . import apple_hig  # noqa: F401
 
 __all__ = [
     "Theme",

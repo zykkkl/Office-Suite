@@ -1,0 +1,166 @@
+"""IR 布局规格 — 定义元素在容器中的位置和尺寸
+
+布局模式：
+  - absolute: 绝对坐标（mm）
+  - relative: 相对坐标（百分比）
+  - grid: 栅格布局（12/24 列）
+  - flex: 弹性布局（Flexbox 语义）
+
+P0 仅支持 absolute + relative。grid/flex 为 P1。
+"""
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+
+class LayoutMode(Enum):
+    ABSOLUTE = "absolute"
+    RELATIVE = "relative"
+    GRID = "grid"
+    FLEX = "flex"
+
+
+@dataclass(frozen=True)
+class AbsolutePosition:
+    """绝对坐标定位（mm）"""
+    x: float = 0.0
+    y: float = 0.0
+    width: float = 0.0
+    height: float = 0.0
+
+
+@dataclass(frozen=True)
+class RelativePosition:
+    """相对坐标定位（百分比，0-100）"""
+    x_pct: float = 0.0
+    y_pct: float = 0.0
+    width_pct: float = 100.0
+    height_pct: float = 100.0
+
+
+class GridAlign(Enum):
+    START = "start"
+    CENTER = "center"
+    END = "end"
+    STRETCH = "stretch"
+
+
+@dataclass(frozen=True)
+class GridPosition:
+    """栅格布局定位"""
+    column: int = 1            # 起始列（1-based）
+    column_span: int = 1       # 跨列数
+    row: int = 1               # 起始行（1-based）
+    row_span: int = 1          # 跨行数
+    columns: int = 12          # 总列数
+    align: GridAlign = GridAlign.STRETCH
+
+
+class FlexDirection(Enum):
+    ROW = "row"
+    COLUMN = "column"
+    ROW_REVERSE = "row-reverse"
+    COLUMN_REVERSE = "column-reverse"
+
+
+class FlexJustify(Enum):
+    START = "start"
+    CENTER = "center"
+    END = "end"
+    SPACE_BETWEEN = "space-between"
+    SPACE_AROUND = "space-around"
+    SPACE_EVENLY = "space-evenly"
+
+
+class FlexAlign(Enum):
+    START = "start"
+    CENTER = "center"
+    END = "end"
+    STRETCH = "stretch"
+    BASELINE = "baseline"
+
+
+@dataclass(frozen=True)
+class FlexPosition:
+    """弹性布局定位"""
+    direction: FlexDirection = FlexDirection.ROW
+    justify: FlexJustify = FlexJustify.START
+    align: FlexAlign = FlexAlign.START
+    gap: float = 0.0           # 间距（mm）
+    order: int = 0             # 排序
+    grow: float = 0.0          # 放大比例
+    shrink: float = 1.0        # 缩小比例
+    basis: str = "auto"        # 初始尺寸
+
+
+@dataclass
+class LayoutSpec:
+    """统一布局规格"""
+    mode: LayoutMode = LayoutMode.ABSOLUTE
+    absolute: AbsolutePosition | None = None
+    relative: RelativePosition | None = None
+    grid: GridPosition | None = None
+    flex: FlexPosition | None = None
+
+    def resolve_mm(self, container_width: float, container_height: float) -> AbsolutePosition:
+        """将任意布局模式解析为绝对坐标（mm）
+
+        Args:
+            container_width: 容器宽度（mm）
+            container_height: 容器高度（mm）
+
+        Returns:
+            AbsolutePosition（mm）
+        """
+        if self.mode == LayoutMode.ABSOLUTE and self.absolute:
+            return self.absolute
+
+        if self.mode == LayoutMode.RELATIVE and self.relative:
+            return AbsolutePosition(
+                x=self.relative.x_pct / 100 * container_width,
+                y=self.relative.y_pct / 100 * container_height,
+                width=self.relative.width_pct / 100 * container_width,
+                height=self.relative.height_pct / 100 * container_height,
+            )
+
+        if self.mode == LayoutMode.GRID and self.grid:
+            col_width = container_width / self.grid.columns
+            return AbsolutePosition(
+                x=(self.grid.column - 1) * col_width,
+                y=(self.grid.row - 1) * col_width,
+                width=self.grid.column_span * col_width,
+                height=self.grid.row_span * col_width,
+            )
+
+        # FLEX 和 fallback 返回默认
+        return AbsolutePosition()
+
+
+# ============================================================
+# 坐标转换工具
+# ============================================================
+
+EMU_PER_MM = 36000
+TWIPS_PER_MM = 1440
+PT_PER_MM = 2.834645669
+
+
+def mm_to_emu(mm: float) -> int:
+    """mm → EMU (PPTX)"""
+    return int(mm * EMU_PER_MM)
+
+
+def mm_to_twips(mm: float) -> float:
+    """mm → Twips (DOCX)"""
+    return mm * TWIPS_PER_MM
+
+
+def mm_to_pt(mm: float) -> float:
+    """mm → points (PDF)"""
+    return mm * PT_PER_MM
+
+
+def mm_to_px(mm: float, dpi: float = 96) -> float:
+    """mm → pixels (HTML)"""
+    return mm * dpi / 25.4
