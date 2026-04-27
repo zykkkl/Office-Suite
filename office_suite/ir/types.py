@@ -143,6 +143,85 @@ class IRStyle:
 
 
 @dataclass
+class IRAnimation:
+    """IR 动画 — 渲染器无关的动画描述
+
+    PPTX 是唯一支持动画的格式，其他渲染器忽略或降级。
+
+    动画类型：
+      - entry: 入场动画（元素从无到有）
+      - exit: 退出动画（元素从有到无）
+      - emphasis: 强调动画（元素在原位变化）
+      - motion_path: 路径动画（元素沿路径移动）
+
+    缓动函数控制动画速度曲线：
+      - linear: 匀速
+      - ease_in: 加速
+      - ease_out: 减速
+      - ease_in_out: 先加速后减速
+      - bounce: 弹跳
+      - elastic: 弹性
+
+    PPTX 映射约束：
+      - 物理动画（弹簧/重力）预计算为关键帧
+      - 并行动画最多 4 层
+      - infinite → repeatUntilNextClick
+    """
+    anim_type: str = "entry"        # entry / exit / emphasis / motion_path
+    effect: str = "fade"            # 动画效果名
+    trigger: str = "on_click"       # on_click / with_previous / after_previous
+    duration: float = 0.5           # 持续时间（秒）
+    delay: float = 0.0              # 延迟时间（秒）
+    easing: str = "ease_out"        # 缓动函数
+    repeat: int = 0                 # 重复次数 (0=不重复, -1=无限)
+    direction: str = ""             # 方向 (up/down/left/right)
+    # 路径动画坐标点 (motion_path 用)
+    path_points: list[tuple[float, float]] = field(default_factory=list)
+    # 原始参数
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+# 入场动画预设
+ENTRY_ANIMATIONS = {
+    "fade", "fade_in", "slide_up", "slide_down", "slide_left", "slide_right",
+    "zoom_in", "zoom_out", "fly_in", "wipe_up", "wipe_down", "wipe_left",
+    "wipe_right", "split_horizontal", "split_vertical", "shape_dissolve",
+    "blinds", "checkerboard", "random_bars", "wheel", "spin",
+}
+
+# 退出动画预设
+EXIT_ANIMATIONS = {
+    "fade_out", "slide_out_up", "slide_out_down", "slide_out_left",
+    "slide_out_right", "zoom_out_exit", "fly_out", "wipe_exit",
+}
+
+# 强调动画预设
+EMPHASIS_ANIMATIONS = {
+    "pulse", "shake", "glow_pulse", "breathe", "float", "spin_emphasis",
+    "grow", "shrink", "color_change", "bold_reveal",
+}
+
+# 路径动画预设
+MOTION_PATH_PRESETS = {
+    "arc", "spiral", "wave_path", "loop", "diamond", "hexagon",
+}
+
+# 缓动函数
+EASING_FUNCTIONS = {
+    "linear", "ease_in", "ease_out", "ease_in_out",
+    "bounce", "elastic", "back",
+}
+
+# PPTX 动画降级映射
+ANIMATION_FALLBACK = {
+    "spring": "ease_out",
+    "bounce": "ease_out",
+    "orbit": "custom_path",
+    "infinite": "repeat_until_next_click",
+}
+
+
+@dataclass
 class IRNode:
     """IR 基础节点"""
     node_type: NodeType
@@ -160,6 +239,8 @@ class IRNode:
     # 数据绑定
     data_ref: str | None = None
     chart_type: str | None = None
+    # 动画列表
+    animations: list["IRAnimation"] = field(default_factory=list)
     # 额外属性
     extra: dict[str, Any] = field(default_factory=dict)
     # 原始 DSL 路径（调试用）

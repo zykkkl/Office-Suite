@@ -30,6 +30,7 @@ from ..dsl.schema import (
 )
 from .cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
 from .types import (
+    IRAnimation,
     IRDocument,
     IRNode,
     IRPosition,
@@ -146,6 +147,59 @@ def _gradient_to_dict(grad) -> dict[str, Any]:
 # 元素编译
 # ============================================================
 
+def _parse_animations(raw: dict | None) -> list[IRAnimation]:
+    """将 DSL animation 字典解析为 IRAnimation 列表
+
+    支持格式：
+      animation: { effect: fade, duration: 0.5 }
+      animation:
+        - { effect: fade_in, trigger: on_click }
+        - { effect: pulse, trigger: after_previous }
+    """
+    if not raw:
+        return []
+
+    # 支持单个动画 dict 或列表
+    items = raw if isinstance(raw, list) else [raw]
+
+    animations = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        # 动画类型推断
+        anim_type = item.get("type", "entry")
+        effect = item.get("effect", item.get("animation", "fade"))
+
+        # 强调动画自动设置 anim_type
+        emphasis_effects = {"pulse", "shake", "glow_pulse", "breathe", "float",
+                            "spin_emphasis", "grow", "shrink"}
+        if effect in emphasis_effects:
+            anim_type = "emphasis"
+
+        # 退出动画
+        exit_effects = {"fade_out", "slide_out_up", "slide_out_down", "slide_out_left",
+                        "slide_out_right", "zoom_out_exit"}
+        if effect in exit_effects:
+            anim_type = "exit"
+
+        animations.append(IRAnimation(
+            anim_type=anim_type,
+            effect=effect,
+            trigger=item.get("trigger", "on_click"),
+            duration=item.get("duration", 0.5),
+            delay=item.get("delay", 0.0),
+            easing=item.get("easing", "ease_out"),
+            repeat=item.get("repeat", 0),
+            direction=item.get("direction", ""),
+            extra={k: v for k, v in item.items()
+                   if k not in ("type", "effect", "animation", "trigger",
+                                "duration", "delay", "easing", "repeat", "direction")},
+        ))
+
+    return animations
+
+
 # DSL type → IR NodeType 映射
 TYPE_MAP = {
     "text": NodeType.TEXT,
@@ -228,6 +282,9 @@ def compile_element(
             ir_pos.width_mm or parent_w, ir_pos.height_mm or parent_h, child_path,
         ))
 
+    # 动画
+    animations = _parse_animations(elem.animation)
+
     return IRNode(
         node_type=node_type,
         id=elem.extra.get("id", ""),
@@ -239,6 +296,7 @@ def compile_element(
         children=children,
         data_ref=elem.data_ref,
         chart_type=elem.chart_type,
+        animations=animations,
         extra={k: v for k, v in elem.extra.items() if k != "id"},
         source_path=path,
     )

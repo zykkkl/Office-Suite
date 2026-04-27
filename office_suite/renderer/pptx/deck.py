@@ -35,6 +35,7 @@ from pptx.chart.data import CategoryChartData
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
+from .animation import apply_animations
 
 # mm → EMU
 MM_TO_EMU = 36000
@@ -225,6 +226,14 @@ class PPTXRenderer(BaseRenderer):
         if style:
             self._apply_text_style(p, style)
 
+        # 应用动画
+        if node.animations:
+            apply_animations(slide, txBox, node.animations)
+
+        # 应用文本变换 (WordArt)
+        if style and style.text_effect:
+            self._apply_text_warp(txBox, style.text_effect)
+
     def _render_shape(self, slide, node: IRNode, doc: IRDocument):
         """渲染形状元素
 
@@ -254,6 +263,10 @@ class PPTXRenderer(BaseRenderer):
             p.text = node.content
             if style:
                 self._apply_text_style(p, style)
+
+        # 应用动画
+        if node.animations:
+            apply_animations(slide, shape, node.animations)
 
     def _render_image(self, slide, node: IRNode, doc: IRDocument):
         """渲染图片元素
@@ -557,6 +570,62 @@ class PPTXRenderer(BaseRenderer):
             font.italic = italic
         if color:
             font.color.rgb = self._hex_to_rgb(color)
+
+    def _apply_text_warp(self, shape, text_effect: dict[str, Any]):
+        """应用 WordArt 文本变换
+
+        通过 Oxml 注入 <a:bodyPr> 的 presetTextWarp 属性。
+        text_effect 示例: { transform: "arch", bend: 50 }
+        """
+        from lxml import etree
+
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        # 获取 shape 的 txBody
+        tx_body = shape._element.find(f'.//{{{a_ns}}}txBody')
+        if tx_body is None:
+            return
+
+        # 获取或创建 bodyPr
+        body_pr = tx_body.find(f'{{{a_ns}}}bodyPr')
+        if body_pr is None:
+            body_pr = etree.SubElement(tx_body, f'{{{a_ns}}}bodyPr')
+
+        # 文本变换映射
+        transform_map = {
+            "arch": "textArchDown",
+            "arch_up": "textArchUp",
+            "wave": "textWave1",
+            "circle": "textCircle",
+            "slant_up": "textSlantUp",
+            "slant_down": "textSlantDown",
+            "triangle": "textTriangle",
+            "chevron_up": "textChevronUp",
+            "chevron_down": "textChevronDown",
+            "button": "textButton",
+            "deflate": "textDeflate",
+            "inflate": "textInflate",
+            "fade_up": "textFadeUp",
+            "fade_down": "textFadeDown",
+        }
+
+        transform_type = text_effect.get("transform", text_effect.get("type", "plain"))
+        preset = transform_map.get(transform_type, "textPlain")
+
+        # 注入 presetTextWarp
+        prst_tx_warp = etree.SubElement(body_pr, f'{{{a_ns}}}prstTxWarp')
+        prst_tx_warp.set('prst', preset)
+
+        # avLst (adjust value list)
+        av_lst = etree.SubElement(prst_tx_warp, f'{{{a_ns}}}avLst')
+
+        # bend 参数
+        bend = text_effect.get("bend", 0)
+        if bend != 0:
+            gd = etree.SubElement(av_lst, f'{{{a_ns}}}gd')
+            gd.set('name', 'adj')
+            # PPTX bend 范围: -100000 ~ 100000 (万分比)
+            gd.set('fmla', f'val {int(bend * 1000)}')
 
     @staticmethod
     def _hex_to_rgb(hex_str: str) -> RGBColor:

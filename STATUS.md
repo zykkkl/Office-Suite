@@ -24,26 +24,58 @@ AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
 ## Phase 7 ✅ 已完成
 PDF + HTML 渲染器。30 项测试全部通过。
 
+## Phase 8 ✅ 已完成
+动画 + 艺术字。58 项测试全部通过。
+
 ### 新增模块
 
 | 模块 | 文件 | 说明 |
 |------|------|------|
-| PDF 渲染器 | `renderer/pdf/canvas.py` | reportlab 渲染，支持文本/表格/形状/图片占位/图表占位 |
-| HTML 渲染器 | `renderer/html/dom.py` | 独立 HTML + 内联 CSS，支持文本/表格/图片/形状/图表 |
+| 动画引擎 | `engine/style/animation.py` | 缓动函数(7种) + 关键帧生成 + 物理动画(弹簧/重力/轨道) |
+| 文本塑形 | `engine/text/shaping.py` | WordArt 变换映射 + PPTX presetTextWarp |
+| PPTX 动画 | `renderer/pptx/animation.py` | IR → PPTX XML 注入 (animEffect/animScale) |
+| IR 动画类型 | `ir/types.py` | IRAnimation 数据结构 + 预设集合 + 降级映射 |
 
-### 能力声明
+### 动画系统
 
-| 格式 | 支持节点 | 不支持 | 降级策略 |
-|------|---------|--------|---------|
-| PDF | TEXT, TABLE, SHAPE, GROUP | IMAGE, CHART, 动画, 艺术字 | gradient→solid, image→placeholder |
-| HTML | TEXT, TABLE, IMAGE, SHAPE, CHART, GROUP | 动画, 艺术字 | arch/wave→plain_text |
+| 类别 | 预设 | 说明 |
+|------|------|------|
+| 入场 | fade, slide_up/down/left/right, zoom_in/out, fly_in, wipe, blinds, wheel, spin | 从无到有 |
+| 退出 | fade_out, slide_out_*, zoom_out_exit, fly_out | 从有到无 |
+| 强调 | pulse, shake, glow_pulse, breathe, float, grow, shrink | 原位变化 |
+| 路径 | arc, spiral, wave_path, loop, diamond | 沿路径移动 |
 
-### 坐标映射
+### 缓动函数
 
-| 格式 | 单位 | 原点 | 转换 |
-|------|------|------|------|
-| PDF | pt (1mm=2.835pt) | 左下角 | y = page_h - ir_y - h |
-| HTML | mm (CSS) | 左上角 | 直接映射 |
+| 函数 | 说明 |
+|------|------|
+| linear | 匀速 |
+| ease_in | 加速 (二次) |
+| ease_out | 减速 (二次) |
+| ease_in_out | 先加速后减速 |
+| bounce | 弹跳减速 |
+| elastic | 弹性减速 |
+| back | 回拉减速 |
+
+### 物理动画预计算
+
+| 类型 | 函数 | 参数 |
+|------|------|------|
+| 弹簧 | spring_keyframes() | target, stiffness, damping, mass |
+| 重力 | gravity_keyframes() | fall_height, bounce_count, decay |
+| 轨道 | orbit_keyframes() | center, radius, steps |
+
+### WordArt 变换
+
+| 变换 | PPTX 映射 |
+|------|-----------|
+| arch | textArchDown |
+| arch_up | textArchUp |
+| wave | textWave1 |
+| circle | textCircle |
+| slant_up | textSlantUp |
+| slant_down | textSlantDown |
+| triangle | textTriangle |
 
 ## 测试汇总
 
@@ -57,7 +89,8 @@ PDF + HTML 渲染器。30 项测试全部通过。
 | Phase 5 | 42 | ✅ |
 | Phase 6 | 57 | ✅ |
 | Phase 7 | 30 | ✅ |
-| **总计** | **332** | **全绿** |
+| Phase 8 | 58 | ✅ |
+| **总计** | **390** | **全绿** |
 
-## 下一步 (Phase 8)
-动画 + 艺术字 — PPTX 入场/退出/强调动画 + WordArt 变换。
+## 下一步 (Phase 9)
+模板库 + 打磨 — 10+ 业务模板 + 端到端测试 + 性能基准。
