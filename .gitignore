@@ -34,3 +34,4 @@ tests/output/*.html
 .env
 .env.local
 .claude/
+demo_output/
