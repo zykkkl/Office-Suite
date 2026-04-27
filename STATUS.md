@@ -25,6 +25,23 @@ PPTX 渲染器核心完善。60 项测试全部通过。
 | 流水线调度器 | `pipeline/core/scheduler.py` | 拓扑排序 + 顺序执行 + 自定义执行器 |
 | 流水线 DSL 解析 | `pipeline/parser.py` | YAML → PipelineGraph |
 
+## Phase 4 ✅ 已完成
+DOCX + XLSX 渲染器。24 项测试全部通过。
+
+### 新增模块
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| DOCX 渲染器 | `renderer/docx/document.py` | python-docx 渲染，支持文本/表格/图片/形状降级 |
+| XLSX 渲染器 | `renderer/xlsx/workbook.py` | openpyxl 渲染，支持 Sheet/数据/图表/多 Sheet |
+
+### 能力声明
+
+| 格式 | 支持节点 | 不支持 | 降级策略 |
+|------|---------|--------|---------|
+| DOCX | TEXT, TABLE, IMAGE, GROUP | CHART, 动画, 艺术字 | arch/wave→plain_text, gradient→solid |
+| XLSX | TEXT, TABLE, CHART, GROUP | IMAGE, 动画 | gradient→solid, shadow→none |
+
 ## 测试汇总
 
 | 阶段 | 测试数 | 状态 |
@@ -33,7 +50,8 @@ PPTX 渲染器核心完善。60 项测试全部通过。
 | Phase 1 | 65 | ✅ |
 | Phase 2 | 60 | ✅ |
 | Phase 3 | 50 | ✅ |
-| **总计** | **179** | **全绿** |
+| Phase 4 | 24 | ✅ |
+| **总计** | **203** | **全绿** |
 
-## 下一步 (Phase 4)
-DOCX + XLSX 渲染器。
+## 下一步 (Phase 5)
+AI 意图解析器 — 自然语言 → DSL YAML。
