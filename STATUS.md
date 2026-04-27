@@ -42,6 +42,32 @@ DOCX + XLSX 渲染器。24 项测试全部通过。
 | DOCX | TEXT, TABLE, IMAGE, GROUP | CHART, 动画, 艺术字 | arch/wave→plain_text, gradient→solid |
 | XLSX | TEXT, TABLE, CHART, GROUP | IMAGE, 动画 | gradient→solid, shadow→none |
 
+## Phase 5 ✅ 已完成
+AI 意图解析 + 设计建议 + 质量评审。42 项测试全部通过。
+
+### 新增模块
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 意图解析 | `ai/intent.py` | NL → DesignBrief，关键词匹配提取文档类型/风格/情绪/强调点 |
+| 设计建议 | `ai/suggest.py` | 配色方案(5种预设) + 布局推荐 + 排版建议 |
+| 质量评审 | `ai/critique.py` | WCAG 对比度检查 + 层次检查 + 一致性检查 + 布局检查 |
+
+### 功能清单
+
+| 功能 | 说明 |
+|------|------|
+| 文档类型识别 | PPT/Word/Excel 关键词 → presentation/document/spreadsheet |
+| 风格识别 | 科技深色/商务浅色/极简/创意/学术 5 种预设 |
+| 情绪提取 | professional/modern/warm/playful/serious/data_driven |
+| 配色推荐 | 5 套预设配色 + 主色覆盖 + 背景强制切换 |
+| 布局推荐 | 封面/内容/图表/对比 4 种演示布局 + 文档/表格布局 |
+| 排版推荐 | 每种风格对应字体/字号/行高预设 |
+| 对比度检查 | WCAG 2.1 相对亮度计算，4.5:1 最低阈值 |
+| 层次检查 | 标题/正文字号差异 >= 8pt |
+| 一致性检查 | 字号种类 <= 4 种 |
+| 质量分 | 0-100 分制，ERROR -15, WARNING -5, INFO -1 |
+
 ## 测试汇总
 
 | 阶段 | 测试数 | 状态 |
@@ -51,7 +77,8 @@ DOCX + XLSX 渲染器。24 项测试全部通过。
 | Phase 2 | 60 | ✅ |
 | Phase 3 | 50 | ✅ |
 | Phase 4 | 24 | ✅ |
-| **总计** | **203** | **全绿** |
+| Phase 5 | 42 | ✅ |
+| **总计** | **245** | **全绿** |
 
-## 下一步 (Phase 5)
-AI 意图解析器 — 自然语言 → DSL YAML。
+## 下一步 (Phase 6)
+主题 + 组件库 — Fluent 主题 + 通用主题 + 内置组件（图表/卡片/时间线/对比/信息图）。
