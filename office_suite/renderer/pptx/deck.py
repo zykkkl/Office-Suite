@@ -226,6 +226,10 @@ class PPTXRenderer(BaseRenderer):
         if style:
             self._apply_text_style(p, style)
 
+        # 阴影
+        if style and style.shadow:
+            self._apply_shadow(txBox, style.shadow)
+
         # 应用动画
         if node.animations:
             apply_animations(slide, txBox, node.animations)
@@ -292,21 +296,38 @@ class PPTXRenderer(BaseRenderer):
     def _render_table(self, slide, node: IRNode, doc: IRDocument):
         """渲染表格元素
 
-        数据来源：
+        数据来源（优先级从高到低）：
+          - data_ref: 引用 doc.data 中的键（二维数组）
           - extra.data: 内联二维数组
-          - extra.rows/extra.cols: 行列数
+          - extra.rows/extra.cols: 行列数（空表格）
         """
         pos = self._get_position(node)
         left, top, width, height = self._pos_to_emu(pos)
 
-        rows = node.extra.get("rows", 3)
-        cols = node.extra.get("cols", 3)
+        # 解析数据：data_ref 优先于 extra.data
+        resolved_data: list | None = None
+        if node.data_ref and node.data_ref in doc.data:
+            ref_val = doc.data[node.data_ref]
+            if isinstance(ref_val, list):
+                resolved_data = ref_val
+        if resolved_data is None:
+            inline_data = node.extra.get("data")
+            if isinstance(inline_data, list):
+                resolved_data = inline_data
+
+        # 推断行列数
+        if resolved_data:
+            rows = len(resolved_data)
+            cols = max((len(r) for r in resolved_data if isinstance(r, list)), default=1)
+        else:
+            rows = node.extra.get("rows", 3)
+            cols = node.extra.get("cols", 3)
 
         table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
         table = table_shape.table
 
         # 填充数据
-        inline_data = node.extra.get("data")
+        inline_data = resolved_data
         if isinstance(inline_data, list):
             for r, row_data in enumerate(inline_data[:rows]):
                 if isinstance(row_data, list):
@@ -345,7 +366,7 @@ class PPTXRenderer(BaseRenderer):
         xl_chart_type = CHART_TYPE_MAP.get(chart_type_str, XL_CHART_TYPE.BAR_CLUSTERED)
 
         # 构建图表数据
-        chart_data = self._build_chart_data(node)
+        chart_data = self._build_chart_data(node, doc)
 
         # 添加图表
         chart_frame = slide.shapes.add_chart(
@@ -369,10 +390,29 @@ class PPTXRenderer(BaseRenderer):
         # 应用主题色到系列
         self._apply_chart_colors(chart, node)
 
-    def _build_chart_data(self, node: IRNode) -> CategoryChartData:
-        """从 IRNode.extra 构建 CategoryChartData"""
-        categories = node.extra.get("categories", [])
-        series_list = node.extra.get("series", [])
+    def _build_chart_data(self, node: IRNode, doc: IRDocument | None = None) -> CategoryChartData:
+        """从 IRNode 构建 CategoryChartData
+
+        数据来源（优先级从高到低）：
+          - data_ref: 引用 doc.data 中的键，格式：
+              { categories: [...], series: [{name, values}, ...] }
+          - extra.categories / extra.series: 内联数据
+        """
+        categories: list = []
+        series_list: list = []
+
+        # 优先从 data_ref 读取
+        if node.data_ref and doc is not None and node.data_ref in doc.data:
+            ref_val = doc.data[node.data_ref]
+            if isinstance(ref_val, dict):
+                categories = ref_val.get("categories", [])
+                series_list = ref_val.get("series", [])
+
+        # 回退到 extra 内联数据
+        if not categories:
+            categories = node.extra.get("categories", [])
+        if not series_list:
+            series_list = node.extra.get("series", [])
 
         chart_data = CategoryChartData()
         chart_data.categories = categories
@@ -438,6 +478,10 @@ class PPTXRenderer(BaseRenderer):
         else:
             shape.fill.background()
 
+        # 阴影
+        if style and style.shadow:
+            self._apply_shadow(shape, style.shadow)
+
     def _apply_gradient_fill(self, fill, gradient: dict[str, Any]):
         """应用渐变填充
 
@@ -466,6 +510,72 @@ class PPTXRenderer(BaseRenderer):
                 fill.gradient_angle = angle
             except AttributeError:
                 pass  # 某些版本不支持
+
+    def _apply_shadow(self, shape, shadow: dict[str, Any]):
+        """通过 DrawingML XML 注入阴影效果
+
+        shadow 字典格式：
+          { color: "#000000", opacity: 0.5, blur: 4, offset_x: 3, offset_y: 3, angle: 45 }
+
+        python-pptx 未暴露阴影 API，直接操作底层 XML。
+        spPr 通过 shape._element.spPr 属性访问（python-pptx 内部属性），
+        避免因命名空间差异（p: vs a:）导致 find() 返回 None。
+        """
+        from lxml import etree
+
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        # 优先使用 python-pptx 内部属性直接获取 spPr，
+        # 回退到 XPath 搜索（兼容不同 shape 类型）
+        sp_pr = getattr(shape._element, 'spPr', None)
+        if sp_pr is None:
+            # 在整个元素树中搜索（p:spPr 和 xdr:spPr 均可匹配）
+            for ns in (
+                'http://schemas.openxmlformats.org/presentationml/2006/main',
+                'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+            ):
+                sp_pr = shape._element.find(f'.//{{{ns}}}spPr')
+                if sp_pr is not None:
+                    break
+        if sp_pr is None:
+            return
+
+        # 获取或创建 effectLst
+        effect_lst = sp_pr.find(f'{{{a_ns}}}effectLst')
+        if effect_lst is None:
+            effect_lst = etree.SubElement(sp_pr, f'{{{a_ns}}}effectLst')
+
+        # 移除已有阴影（避免重复）
+        for old in effect_lst.findall(f'{{{a_ns}}}outerShdw'):
+            effect_lst.remove(old)
+
+        # 参数解析
+        color_hex = shadow.get("color", "#000000").lstrip("#")
+        opacity = shadow.get("opacity", 0.5)
+        blur_pt = shadow.get("blur", 4)
+        offset_x = shadow.get("offset_x", 3)
+        offset_y = shadow.get("offset_y", 3)
+        angle_deg = shadow.get("angle", 45)
+
+        # EMU 换算：1pt = 12700 EMU
+        blur_emu = int(blur_pt * 12700)
+        dist_emu = int((offset_x ** 2 + offset_y ** 2) ** 0.5 * 12700)
+        dir_60k = int(angle_deg * 60000)  # 角度单位：60000分之一度
+        alpha_pct = int(opacity * 100000)  # 透明度单位：100000分之一
+
+        # 构建 outerShdw 元素
+        outer_shdw = etree.SubElement(effect_lst, f'{{{a_ns}}}outerShdw')
+        outer_shdw.set('blurRad', str(blur_emu))
+        outer_shdw.set('dist', str(dist_emu))
+        outer_shdw.set('dir', str(dir_60k))
+        outer_shdw.set('algn', 'tl')
+        outer_shdw.set('rotWithShape', '0')
+
+        # 颜色节点
+        srgb_clr = etree.SubElement(outer_shdw, f'{{{a_ns}}}srgbClr')
+        srgb_clr.set('val', color_hex if len(color_hex) == 6 else '000000')
+        alpha = etree.SubElement(srgb_clr, f'{{{a_ns}}}alpha')
+        alpha.set('val', str(alpha_pct))
 
     def _apply_shape_border(self, shape, node: IRNode):
         """应用形状边框"""
@@ -522,17 +632,59 @@ class PPTXRenderer(BaseRenderer):
         height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(30)
         return left, top, width, height
 
+    # 内置主题色表（对应 Office 默认主题 "Office Theme"）
+    _THEME_COLORS: dict[str, str] = {
+        "dk1":     "#000000",  # 深色 1
+        "lt1":     "#FFFFFF",  # 浅色 1
+        "dk2":     "#1F3864",  # 深色 2
+        "lt2":     "#E7E6E6",  # 浅色 2
+        "accent1": "#4472C4",
+        "accent2": "#ED7D31",
+        "accent3": "#A9D18E",
+        "accent4": "#FFC000",
+        "accent5": "#5B9BD5",
+        "accent6": "#70AD47",
+        "hlink":   "#0563C1",  # 超链接
+        "folHlink":"#954F72",  # 已访问超链接
+        # 语义别名
+        "primary":   "#4472C4",
+        "secondary": "#ED7D31",
+        "success":   "#70AD47",
+        "warning":   "#FFC000",
+        "danger":    "#FF0000",
+        "info":      "#5B9BD5",
+        "light":     "#E7E6E6",
+        "dark":      "#1F3864",
+    }
+
     def _resolve_style(self, node: IRNode, doc: IRDocument) -> IRStyle | None:
         """解析节点样式
 
         编译器已做级联，这里直接使用 node.style。
         回退到 doc.styles 的场景：节点仅设了 style_ref 但未级联（旧代码兼容）。
+        若样式含 theme_ref，将其解析为实际颜色并回填 font_color / fill_color。
         """
-        if node.style:
-            return node.style
-        if node.style_ref and node.style_ref in doc.styles:
-            return doc.styles[node.style_ref]
-        return None
+        style = node.style
+        if style is None:
+            if node.style_ref and node.style_ref in doc.styles:
+                style = doc.styles[node.style_ref]
+        if style is None:
+            return None
+
+        # 解析 theme_ref → 实际颜色
+        if style.theme_ref:
+            resolved_color = self._THEME_COLORS.get(style.theme_ref)
+            if resolved_color:
+                # 创建副本，避免修改原始 IR
+                from dataclasses import replace as dc_replace
+                style = dc_replace(
+                    style,
+                    font_color=style.font_color or resolved_color,
+                    fill_color=style.fill_color or resolved_color,
+                    theme_ref=None,  # 已解析，清除引用
+                )
+
+        return style
 
     # 级联后的默认回退值
     _STYLE_DEFAULTS = {
