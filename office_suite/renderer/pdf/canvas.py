@@ -31,6 +31,10 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Table, TableStyle
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+# 注册 CID 中文字体（reportlab 内置，无需外部文件）
+pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
 
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
@@ -48,9 +52,15 @@ _BUILTIN_FONTS = {
 }
 
 # 外部字体名 → reportlab 字体映射
+# 中文字体映射到 CID 字体 STSong-Light（支持简体中文）
 _FONT_MAP = {
-    "microsoft yahei ui": "Helvetica",
-    "microsoft yahei": "Helvetica",
+    "microsoft yahei ui": "STSong-Light",
+    "microsoft yahei": "STSong-Light",
+    "simhei": "STSong-Light",
+    "simsun": "STSong-Light",
+    "nsimsun": "STSong-Light",
+    "fangsong": "STSong-Light",
+    "kaiti": "STSong-Light",
     "segoe ui": "Helvetica",
     "arial": "Helvetica",
     "helvetica neue": "Helvetica",
@@ -72,6 +82,12 @@ def _resolve_font(font_name: str | None, bold: bool = False) -> str:
 
     # 映射
     mapped = _FONT_MAP.get(font_name.lower(), "Helvetica")
+
+    # CID 中文字体没有 Bold 变体，直接返回
+    if mapped == "STSong-Light":
+        return mapped
+
+    # 西文字体添加 Bold 后缀
     if bold and not mapped.endswith("-Bold"):
         if mapped == "Helvetica":
             return "Helvetica-Bold"
@@ -186,7 +202,10 @@ class PDFRenderer(BaseRenderer):
             if style.font_size:
                 font_size = style.font_size
             if style.font_color:
-                font_color = HexColor(style.font_color)
+                try:
+                    font_color = HexColor(style.font_color)
+                except (ValueError, TypeError):
+                    font_color = black  # 无效颜色回退到黑色
             if style.font_weight and style.font_weight >= 700:
                 bold = True
 
@@ -211,9 +230,13 @@ class PDFRenderer(BaseRenderer):
         """渲染表格"""
         data = node.extra.get("data", [])
         rows = node.extra.get("rows", len(data))
-        cols = node.extra.get("cols", len(data[0]) if data else 0)
+        # 安全计算列数：确保 data[0] 是列表
+        if data and isinstance(data[0], list):
+            cols = node.extra.get("cols", len(data[0]))
+        else:
+            cols = node.extra.get("cols", 0)
 
-        if not data:
+        if not data or cols == 0:
             return
 
         pos = node.position
@@ -237,6 +260,7 @@ class PDFRenderer(BaseRenderer):
         style_cmds = [
             ("BACKGROUND", (0, 0), (-1, 0), HexColor("#1E293B")),
             ("TEXTCOLOR", (0, 0), (-1, 0), white),
+            ("FONTNAME", (0, 0), (-1, -1), "STSong-Light"),
             ("FONTSIZE", (0, 0), (-1, -1), 10),
             ("GRID", (0, 0), (-1, -1), 0.5, HexColor("#E2E8F0")),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -266,7 +290,10 @@ class PDFRenderer(BaseRenderer):
         style = node.style
         fill_color = None
         if style and style.fill_color:
-            fill_color = HexColor(style.fill_color)
+            try:
+                fill_color = HexColor(style.fill_color)
+            except (ValueError, TypeError):
+                fill_color = None  # 无效颜色不填充
 
         self._c.saveState()
         if fill_color:
