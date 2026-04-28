@@ -57,6 +57,8 @@ def test_pdf_capability():
     check("支持 TEXT", NodeType.TEXT in cap.supported_node_types)
     check("支持 TABLE", NodeType.TABLE in cap.supported_node_types)
     check("支持 SHAPE", NodeType.SHAPE in cap.supported_node_types)
+    check("支持 IMAGE", NodeType.IMAGE in cap.supported_node_types)
+    check("支持 CHART", NodeType.CHART in cap.supported_node_types)
     check("不支持动画", len(cap.supported_animations) == 0)
     check("不支持艺术字", len(cap.supported_text_transforms) == 0)
     check("有降级映射", len(cap.fallback_map) > 0)
@@ -166,7 +168,42 @@ slides:
 
 
 # ============================================================
-# 测试 18-22: HTML 渲染器能力声明
+# 测试 18-20: PDF 渲染 — 图表
+# ============================================================
+
+def test_pdf_chart():
+    section("5. PDF 图表渲染")
+
+    dsl = """
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: chart
+        chart_type: line
+        extra:
+          title: "月度趋势"
+          categories: ["1月", "2月", "3月", "4月"]
+          series:
+            - name: "营收"
+              values: [100, 120, 150, 180]
+            - name: "成本"
+              values: [60, 70, 85, 95]
+        position: { x: 20mm, y: 20mm, width: 200mm, height: 95mm }
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+
+    output = PROJECT_ROOT / "tests" / "output" / "phase7_chart.pdf"
+    renderer = PDFRenderer()
+    out_path = renderer.render(ir, output)
+    check("PDF 图表生成", out_path.exists())
+    check("PDF 图表 > 1KB", out_path.stat().st_size > 1000, f"{out_path.stat().st_size} bytes")
+
+
+# ============================================================
+# 测试 21-25: HTML 渲染器能力声明
 # ============================================================
 
 def test_html_capability():
@@ -183,7 +220,7 @@ def test_html_capability():
 
 
 # ============================================================
-# 测试 23-27: HTML 渲染 — 文本
+# 测试 26-30: HTML 渲染 — 文本
 # ============================================================
 
 def test_html_text():
@@ -221,7 +258,7 @@ slides:
 
 
 # ============================================================
-# 测试 28-30: HTML 渲染 — 表格
+# 测试 31-33: HTML 渲染 — 表格
 # ============================================================
 
 def test_html_table():
@@ -256,7 +293,7 @@ slides:
 
 
 # ============================================================
-# 测试 31-33: HTML 渲染 — 图表
+# 测试 34-36: HTML 渲染 — 图表
 # ============================================================
 
 def test_html_chart():
@@ -287,11 +324,13 @@ slides:
     check("HTML 图表生成", out_path.exists())
 
     content = out_path.read_text(encoding="utf-8")
-    check("HTML 含 Chart 占位", "Chart" in content)
+    check("HTML 含 SVG 图表", "<svg" in content)
+    check("HTML 含柱形", "<rect" in content)
+    check("HTML 不含图表占位", "[Chart" not in content)
 
 
 # ============================================================
-# 测试 34-36: 端到端 DSL → PDF + HTML
+# 测试 37-39: 端到端 DSL → PDF + HTML
 # ============================================================
 
 def test_e2e():
@@ -354,6 +393,7 @@ def main():
     test_pdf_text()
     test_pdf_table()
     test_pdf_shape()
+    test_pdf_chart()
     test_html_capability()
     test_html_text()
     test_html_table()
