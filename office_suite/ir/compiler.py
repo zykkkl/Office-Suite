@@ -728,14 +728,8 @@ def compile_slide(
         for i, elem in enumerate(page_elements):
             # stack 布局：为没有 position 的元素自动计算位置
             if slide_stack and elem.position is None:
-                # shape 默认高度
-                default_h = None
-                if elem.type == "shape":
-                    shape_type = elem.extra.get("shape_type", "rectangle")
-                    if shape_type == "line":
-                        default_h = 2
-                    else:
-                        default_h = 10
+                # 估算元素高度
+                default_h = _estimate_element_height(elem, content_width)
 
                 # 处理 extra.center → position.center
                 extra_copy = dict(elem.extra)

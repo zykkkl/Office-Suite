@@ -26,7 +26,7 @@ from pathlib import Path
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
-from reportlab.lib.colors import HexColor, black, white
+from reportlab.lib.colors import HexColor, black, white, Color
 from reportlab.pdfgen import canvas
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Table, TableStyle
@@ -162,8 +162,51 @@ class PDFRenderer(BaseRenderer):
 
     def _render_slide(self, node: IRNode, doc: IRDocument):
         """渲染一张幻灯片/节"""
+        # 先渲染背景
+        self._render_background(node)
         for child in node.children:
             self._render_element(child, doc)
+
+    def _render_background(self, node: IRNode):
+        """渲染幻灯片背景（纯色或渐变）"""
+        bg = (node.extra or {}).get("background", {})
+        if not bg:
+            return
+
+        self._c.saveState()
+
+        # 渐变背景
+        gradient = bg.get("gradient")
+        if gradient:
+            stops = gradient.get("stops", [])
+            if len(stops) >= 2:
+                try:
+                    c1 = HexColor(stops[0])
+                    c2 = HexColor(stops[1])
+                    # 用多个矩形条近似渐变
+                    steps = 40
+                    for s in range(steps):
+                        ratio = s / steps
+                        r = c1.red + (c2.red - c1.red) * ratio
+                        g = c1.green + (c2.green - c1.green) * ratio
+                        b = c1.blue + (c2.blue - c1.blue) * ratio
+                        color = Color(r, g, b)
+                        self._c.setFillColor(color)
+                        bar_h = self._page_h / steps
+                        self._c.rect(0, s * bar_h, self._page_w, bar_h + 0.5, fill=1, stroke=0)
+                except Exception:
+                    pass  # 渐变失败时回退到纯色
+        else:
+            # 纯色背景
+            color = bg.get("color")
+            if color:
+                try:
+                    self._c.setFillColor(HexColor(color))
+                    self._c.rect(0, 0, self._page_w, self._page_h, fill=1, stroke=0)
+                except (ValueError, TypeError):
+                    pass
+
+        self._c.restoreState()
 
     def _render_element(self, node: IRNode, doc: IRDocument):
         """按节点类型分派"""
@@ -181,8 +224,38 @@ class PDFRenderer(BaseRenderer):
             for child in node.children:
                 self._render_element(child, doc)
 
+    def _wrap_text(self, text: str, font_name: str, font_size: float, max_width: float) -> list[str]:
+        """将文本按宽度折行
+
+        中文字符约 0.5 * font_size 宽度，英文约 0.55 * font_size 宽度。
+        """
+        if not text:
+            return [""]
+        lines: list[str] = []
+        current: list[str] = []
+        current_w = 0.0
+        char_w_factor = font_size * 0.55  # 英文字符宽度基准
+
+        for ch in text:
+            # 估算字符宽度
+            if ord(ch) > 127:
+                ch_w = font_size * 0.5
+            else:
+                ch_w = font_size * 0.55
+
+            if current_w + ch_w > max_width and current:
+                lines.append("".join(current))
+                current = []
+                current_w = 0.0
+            current.append(ch)
+            current_w += ch_w
+
+        if current:
+            lines.append("".join(current))
+        return lines if lines else [""]
+
     def _render_text(self, node: IRNode):
-        """渲染文本"""
+        """渲染文本（支持自动折行）"""
         style = node.style
         content = node.content or ""
         if not content.strip():
@@ -205,7 +278,7 @@ class PDFRenderer(BaseRenderer):
                 try:
                     font_color = HexColor(style.font_color)
                 except (ValueError, TypeError):
-                    font_color = black  # 无效颜色回退到黑色
+                    font_color = black
             if style.font_weight and style.font_weight >= 700:
                 bold = True
 
@@ -215,14 +288,32 @@ class PDFRenderer(BaseRenderer):
         self._c.setFillColor(font_color)
         self._c.setFont(font_name, font_size)
 
-        # 简单的文本换行
-        lines = content.split("\n")
         line_height = font_size * 1.4
-        for i, line in enumerate(lines):
+
+        # 先按 \n 分段，再对每段按宽度折行
+        paragraphs = content.split("\n")
+        all_lines: list[str] = []
+        for para in paragraphs:
+            if para:
+                # 减去左边距 (2pt)
+                wrapped = self._wrap_text(para, font_name, font_size, w - 4)
+                all_lines.extend(wrapped)
+            else:
+                all_lines.append("")  # 保留空行
+
+        # 检查是否有 center 标志
+        center_flag = (node.extra or {}).get("center", False)
+
+        for i, line in enumerate(all_lines):
             text_y = y + h - font_size - i * line_height
             if text_y < y:
                 break
-            self._c.drawString(x + 2, text_y, line)
+            if center_flag:
+                # 居中：计算文本宽度
+                text_w = self._c.stringWidth(line, font_name, font_size)
+                self._c.drawString(x + (w - text_w) / 2, text_y, line)
+            else:
+                self._c.drawString(x + 2, text_y, line)
 
         self._c.restoreState()
 
