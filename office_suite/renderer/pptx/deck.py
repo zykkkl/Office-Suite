@@ -41,8 +41,9 @@ from .animation import apply_animations
 MM_TO_EMU = 36000
 
 # 标准 16:9 幻灯片尺寸 (mm)
-SLIDE_WIDTH_MM = 254.0   # 10 inches
-SLIDE_HEIGHT_MM = 190.5  # 7.5 inches
+SLIDE_WIDTH_MM = 254.0    # 10 inches
+SLIDE_HEIGHT_MM = 142.875  # 5.625 inches（16:9）
+# 注意：190.5mm = 7.5" 是 4:3 幻灯片高度，16:9 正确值是 142.875mm
 
 # 图表类型映射
 CHART_TYPE_MAP = {
@@ -213,7 +214,7 @@ class PPTXRenderer(BaseRenderer):
 
         left, top, width, height = self._pos_to_emu(pos)
         if pos.is_center:
-            left = Mm(int((SLIDE_WIDTH_MM - pos.width_mm) / 2))
+            left = Mm((SLIDE_WIDTH_MM - pos.width_mm) / 2)
 
         txBox = slide.shapes.add_textbox(left, top, width, height)
         tf = txBox.text_frame
@@ -625,11 +626,36 @@ class PPTXRenderer(BaseRenderer):
         return node.position or IRPosition()
 
     def _pos_to_emu(self, pos: IRPosition) -> tuple:
-        """将 IRPosition (mm) 转换为 EMU 元组 (left, top, width, height)"""
-        left = Mm(int(pos.x_mm))
-        top = Mm(int(pos.y_mm))
-        width = Mm(int(pos.width_mm)) if pos.width_mm > 0 else Mm(int(SLIDE_WIDTH_MM - pos.x_mm))
-        height = Mm(int(pos.height_mm)) if pos.height_mm > 0 else Mm(30)
+        """将 IRPosition (mm) 转换为 EMU 元组 (left, top, width, height)
+
+        使用浮点精度而非 int() 截断，避免坐标偏移。
+        对超出幻灯片边界的元素发出警告（不强制裁剪，保留原始意图）。
+        """
+        x_mm = pos.x_mm
+        y_mm = pos.y_mm
+        w_mm = pos.width_mm if pos.width_mm > 0 else (SLIDE_WIDTH_MM - x_mm)
+        h_mm = pos.height_mm if pos.height_mm > 0 else 7.5  # 默认 7.5mm
+
+        # 越界检测：元素底部超出幻灯片高度时发出警告
+        bottom_mm = y_mm + h_mm
+        right_mm = x_mm + w_mm
+        if bottom_mm > SLIDE_HEIGHT_MM + 0.5:  # 0.5mm 容差
+            print(
+                f"[WARN] 元素超出幻灯片底部边界: "
+                f"y={y_mm:.1f}mm + h={h_mm:.1f}mm = {bottom_mm:.1f}mm "
+                f"(幻灯片高度 {SLIDE_HEIGHT_MM}mm)"
+            )
+        if right_mm > SLIDE_WIDTH_MM + 0.5:
+            print(
+                f"[WARN] 元素超出幻灯片右侧边界: "
+                f"x={x_mm:.1f}mm + w={w_mm:.1f}mm = {right_mm:.1f}mm "
+                f"(幻灯片宽度 {SLIDE_WIDTH_MM}mm)"
+            )
+
+        left = Mm(x_mm)
+        top = Mm(y_mm)
+        width = Mm(w_mm)
+        height = Mm(h_mm)
         return left, top, width, height
 
     # 内置主题色表（对应 Office 默认主题 "Office Theme"）

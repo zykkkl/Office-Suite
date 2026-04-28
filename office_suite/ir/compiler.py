@@ -73,10 +73,11 @@ def _parse_length(value: str | float | None, parent_size: float = 0) -> tuple[fl
         return 0.0, False, False
 
 
-def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 190.5) -> IRPosition:
+def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition:
     """将 DSL PositionSpec 编译为 IRPosition（mm 单位）
 
-    默认父容器尺寸：标准 16:9 幻灯片 = 254mm x 190.5mm (10" x 7.5")
+    默认父容器尺寸：标准 16:9 幻灯片 = 254mm x 142.875mm (10" x 5.625")
+    注意：190.5mm 是 4:3 幻灯片高度（7.5"），16:9 正确高度是 142.875mm（5.625"）
     """
     if pos is None:
         return IRPosition()
@@ -221,7 +222,7 @@ def compile_element(
     doc_styles: dict[str, IRStyle],  # 已编译的 IR 全局样式
     theme_name: str = "default",
     parent_w: float = 254.0,
-    parent_h: float = 190.5,
+    parent_h: float = 142.875,
     path: str = "",
 ) -> IRNode:
     """将 DSL Element 编译为 IRNode
@@ -331,7 +332,7 @@ def compile_slide(
     return IRNode(
         node_type=NodeType.SLIDE,
         content=None,
-        position=IRPosition(x_mm=0, y_mm=0, width_mm=254, height_mm=190.5),
+        position=IRPosition(x_mm=0, y_mm=0, width_mm=254, height_mm=142.875),
         children=children,
         extra=extra,
         source_path=f"slide[{index}]",
