@@ -49,7 +49,7 @@ class FlexLayout:
     def __init__(
         self,
         container_width: float = 254.0,
-        container_height: float = 190.5,
+        container_height: float = 142.875,  # 16:9 正确高度
     ):
         self.container_width = container_width
         self.container_height = container_height
