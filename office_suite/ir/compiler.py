@@ -497,6 +497,176 @@ def _is_semantic_boundary(elem: Element, next_elem: Element | None) -> bool:
     return False
 
 
+def _is_chapter_title(elem: Element) -> bool:
+    """判断元素是否是章节标题（一级标题）
+
+    章节标题特征：
+    - 样式为 heading/accent/title/subtitle
+    - 或者是大字号（>= 36pt）的文本
+    - 排除短数字装饰元素（如 "01", "02" 等章节编号）
+    """
+    if elem.type != "text":
+        return False
+
+    content = (elem.content or "").strip()
+
+    # 排除短数字装饰元素（如 "01", "02", "06" 等章节编号）
+    if content.isdigit() and len(content) <= 3:
+        return False
+
+    # 检查样式名
+    if isinstance(elem.style, str) and elem.style in ("heading", "accent", "title", "subtitle"):
+        return True
+
+    # 检查字号
+    if isinstance(elem.style, dict):
+        font_spec = elem.style.get("font", {})
+        if isinstance(font_spec, dict) and font_spec.get("size", 18) >= 36:
+            return True
+
+    # 检查 StyleSpec
+    if isinstance(elem.style, StyleSpec) and elem.style.font:
+        if elem.style.font.size >= 36:
+            return True
+
+    return False
+
+
+def _is_list_item(elem: Element) -> bool:
+    """判断元素是否是列表项（以 • 开头的文本）"""
+    if elem.type != "text":
+        return False
+    content = elem.content or ""
+    return content.startswith("•") or content.startswith("·") or content.startswith("-")
+
+
+def _is_chapter_prefix(elem: Element) -> bool:
+    """判断元素是否是章节标题的前缀装饰（如 "01", "02" 等数字编号）
+
+    这类元素应与后面的章节标题归为同一组。
+    """
+    if elem.type != "text":
+        return False
+    content = (elem.content or "").strip()
+    # 纯数字且长度 <= 3（如 "01", "02", "06"）
+    if content.isdigit() and len(content) <= 3:
+        return True
+    return False
+
+
+def _group_elements_by_chapter(elements: list[Element]) -> list[list[Element]]:
+    """将元素按章节分组
+
+    分组规则：
+    - 章节标题（一级标题）开始一个新的分组
+    - 标题前面的装饰元素（如数字编号、分隔线）归入新分组
+    - 标题后面的所有内容（直到下一个标题）都属于这个分组
+    - 第一个分组可以是"前言"（标题前的内容）
+
+    Returns:
+        分组后的元素列表
+    """
+    if not elements:
+        return [[]]
+
+    groups: list[list[Element]] = []
+    current_group: list[Element] = []
+    pending: list[Element] = []  # 等待归属的前缀元素
+
+    for elem in elements:
+        if _is_chapter_title(elem):
+            # 章节标题：开始新分组，pending 元素归入新分组
+            if current_group:
+                groups.append(current_group)
+            current_group = pending + [elem]
+            pending = []
+        elif _is_chapter_prefix(elem) and not current_group:
+            # 前缀元素且当前还没有分组内容 → 暂存到 pending
+            pending.append(elem)
+        elif _is_chapter_prefix(elem) and current_group:
+            # 前缀元素但已有分组内容 → 也暂存到 pending
+            # （可能是上一章的结尾数字，但更可能是下一章的开头编号）
+            pending.append(elem)
+        else:
+            # 普通内容元素
+            if pending:
+                # 有 pending 元素，先检查它们应该归哪
+                # 如果当前组已有内容，pending 可能是下一章的前缀，先保留
+                current_group.extend(pending)
+                pending = []
+            current_group.append(elem)
+
+    # 保存最后一个分组
+    if current_group or pending:
+        groups.append(current_group + pending)
+
+    return groups if groups else [[]]
+
+
+def _paginate_group(
+    group: list[Element],
+    content_width: float,
+    max_height: float,
+    spacing: float,
+    padding_top: float,
+) -> list[list[Element]]:
+    """对单个分组进行分页
+
+    分页规则：
+    - 标题和第一个内容元素尽量在一起
+    - 列表项尽量在一起
+    - 如果单个元素就超出页面，单独一页
+    """
+    if not group:
+        return [[]]
+
+    pages: list[list[Element]] = []
+    current_page: list[Element] = []
+    current_height = padding_top
+    last_list_break = -1  # 最近的列表项结束位置
+
+    for i, elem in enumerate(group):
+        elem_height = _estimate_element_height(elem, content_width)
+
+        # 检查加入当前元素后是否超出页面
+        would_overflow = (current_height + elem_height) > max_height
+
+        if would_overflow and current_page:
+            # 需要分页
+            # 如果当前元素是列表项，且前面有列表项，尝试在列表开始前分页
+            if _is_list_item(elem) and last_list_break >= 0:
+                # 在列表开始前分页
+                split_point = last_list_break + 1
+                pages.append(current_page[:split_point])
+                current_page = current_page[split_point:] + [elem]
+                # 重新计算高度
+                current_height = padding_top
+                for r in current_page[:-1]:
+                    current_height += _estimate_element_height(r, content_width) + spacing
+                current_height += elem_height + spacing
+            else:
+                # 强制在当前位置前分页
+                pages.append(current_page)
+                current_page = [elem]
+                current_height = padding_top + elem_height + spacing
+        else:
+            # 不需要分页
+            current_page.append(elem)
+            current_height += elem_height + spacing
+
+        # 更新列表项结束位置
+        if _is_list_item(elem):
+            if not (i > 0 and _is_list_item(group[i - 1])):
+                # 这是列表的第一项
+                last_list_break = len(current_page) - 1
+
+    # 最后一页
+    if current_page:
+        pages.append(current_page)
+
+    return pages if pages else [[]]
+
+
 def _split_elements_for_pagination(
     elements: list[Element],
     content_width: float,
@@ -505,6 +675,11 @@ def _split_elements_for_pagination(
     padding_top: float,
 ) -> list[list[Element]]:
     """将元素列表按语义分页
+
+    分页策略：
+    1. 先按章节分组（一级标题 + 后续内容）
+    2. 对每组内容进行分页
+    3. 章节间不混排
 
     Args:
         elements: 原始元素列表
@@ -519,52 +694,14 @@ def _split_elements_for_pagination(
     if not elements:
         return [[]]
 
+    # 第一步：按章节分组
+    chapter_groups = _group_elements_by_chapter(elements)
+
+    # 第二步：对每组进行分页
     pages: list[list[Element]] = []
-    current_page: list[Element] = []
-    current_height = padding_top
-    last_boundary_idx = -1  # 最近的语义边界索引
-
-    for i, elem in enumerate(elements):
-        elem_height = _estimate_element_height(elem, content_width)
-        next_elem = elements[i + 1] if i + 1 < len(elements) else None
-
-        # 检查是否是语义边界
-        is_boundary = _is_semantic_boundary(elem, next_elem)
-
-        # 检查加入当前元素后是否超出页面
-        would_overflow = (current_height + elem_height) > max_height
-
-        if would_overflow and current_page:
-            # 需要分页
-            if last_boundary_idx >= 0 and last_boundary_idx < len(current_page):
-                # 在最近的语义边界处分页
-                split_point = last_boundary_idx + 1
-                pages.append(current_page[:split_point])
-                # 新页面从边界后的元素开始
-                remaining = current_page[split_point:]
-                current_page = remaining + [elem]
-                # 重新计算新页面高度
-                current_height = padding_top
-                for r in remaining:
-                    current_height += _estimate_element_height(r, content_width) + spacing
-                current_height += elem_height + spacing
-            else:
-                # 没有合适的边界，强制在当前位置前分页
-                pages.append(current_page)
-                current_page = [elem]
-                current_height = padding_top + elem_height + spacing
-        else:
-            # 不需要分页，加入当前页面
-            current_page.append(elem)
-            current_height += elem_height + spacing
-
-        # 更新最近的语义边界
-        if is_boundary:
-            last_boundary_idx = len(current_page) - 1
-
-    # 最后一页
-    if current_page:
-        pages.append(current_page)
+    for group in chapter_groups:
+        group_pages = _paginate_group(group, content_width, max_height, spacing, padding_top)
+        pages.extend(group_pages)
 
     return pages if pages else [[]]
 
