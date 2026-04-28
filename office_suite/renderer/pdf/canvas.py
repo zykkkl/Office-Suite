@@ -18,8 +18,10 @@
 PDF 能力：
   - 矢量文字 + 精确布局
   - 表格渲染
+  - 图片渲染
   - 基础形状
-  - 不支持动画、艺术字、图表（降级为占位符）
+  - 基础图表（bar/column/line/pie）
+  - 不支持动画、艺术字
 """
 
 from pathlib import Path
@@ -32,6 +34,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Table, TableStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.lib.utils import ImageReader
 
 # 注册 CID 中文字体（reportlab 内置，无需外部文件）
 pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
@@ -116,17 +119,17 @@ class PDFRenderer(BaseRenderer):
         return RendererCapability(
             supported_node_types={
                 NodeType.SLIDE, NodeType.SECTION, NodeType.TEXT,
-                NodeType.TABLE, NodeType.SHAPE, NodeType.GROUP,
+                NodeType.TABLE, NodeType.SHAPE, NodeType.IMAGE,
+                NodeType.CHART, NodeType.GROUP,
             },
             supported_layout_modes={"absolute"},
             supported_text_transforms=set(),
             supported_animations=set(),
-            supported_effects={"shadow"},
+            supported_effects={"shadow", "gradient_fill"},
             fallback_map={
                 "gradient_fill": "solid_fill",
                 "arch": "plain_text",
                 "wave": "plain_text",
-                "image": "placeholder",
             },
         )
 
@@ -217,9 +220,9 @@ class PDFRenderer(BaseRenderer):
         elif node.node_type == NodeType.SHAPE:
             self._render_shape(node)
         elif node.node_type == NodeType.IMAGE:
-            self._render_image_placeholder(node)
+            self._render_image(node)
         elif node.node_type == NodeType.CHART:
-            self._render_chart_placeholder(node)
+            self._render_chart(node, doc)
         elif node.node_type == NodeType.GROUP:
             for child in node.children:
                 self._render_element(child, doc)
@@ -400,12 +403,40 @@ class PDFRenderer(BaseRenderer):
 
         self._c.restoreState()
 
-    def _render_image_placeholder(self, node: IRNode):
-        """渲染图片占位符"""
+    def _render_image(self, node: IRNode):
+        """渲染本地图片，失败时降级为占位符"""
         pos = node.position
         if not pos:
             return
         x, y, w, h = self._get_coords(pos)
+
+        source = node.source
+        image_path = None
+        if isinstance(source, str):
+            raw = source.replace("file://", "")
+            image_path = Path(raw)
+
+        if image_path and image_path.exists():
+            try:
+                img = ImageReader(str(image_path))
+                iw, ih = img.getSize()
+                scale = min(w / iw, h / ih) if iw and ih else 1
+                draw_w = iw * scale
+                draw_h = ih * scale
+                draw_x = x + (w - draw_w) / 2
+                draw_y = y + (h - draw_h) / 2
+                self._c.drawImage(
+                    img,
+                    draw_x,
+                    draw_y,
+                    width=draw_w,
+                    height=draw_h,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
+                return
+            except Exception:
+                pass
 
         self._c.saveState()
         self._c.setStrokeColor(HexColor("#CBD5E1"))
@@ -416,22 +447,193 @@ class PDFRenderer(BaseRenderer):
         self._c.drawCentredString(x + w / 2, y + h / 2, f"[Image: {node.source or ''}]")
         self._c.restoreState()
 
-    def _render_chart_placeholder(self, node: IRNode):
-        """渲染图表占位符"""
+    def _render_chart(self, node: IRNode, doc: IRDocument):
+        """渲染基础图表"""
         pos = node.position
         if not pos:
             return
         x, y, w, h = self._get_coords(pos)
+        data = self._build_chart_payload(node, doc)
+        categories = data["categories"]
+        series_list = data["series"]
+        title = data["title"]
+        chart_type = data["chart_type"]
 
+        if not categories or not series_list:
+            self._render_chart_fallback(x, y, w, h, title or chart_type, "no data")
+            return
+
+        self._c.saveState()
+        self._draw_chart_frame(x, y, w, h, title)
+
+        plot_x = x + 12
+        plot_y = y + 18
+        plot_w = max(w - 24, 10)
+        plot_h = max(h - 38, 10)
+
+        if chart_type == "pie":
+            self._draw_pie_chart(plot_x, plot_y, plot_w, plot_h, categories, series_list)
+        elif chart_type in ("line", "line_marked"):
+            self._draw_line_chart(plot_x, plot_y, plot_w, plot_h, categories, series_list)
+        else:
+            self._draw_bar_chart(plot_x, plot_y, plot_w, plot_h, categories, series_list)
+        self._c.restoreState()
+
+    def _render_chart_fallback(self, x: float, y: float, w: float, h: float, title: str, reason: str):
+        """渲染图表降级状态"""
         self._c.saveState()
         self._c.setStrokeColor(HexColor("#CBD5E1"))
         self._c.setFillColor(HexColor("#EFF6FF"))
         self._c.rect(x, y, w, h, fill=1)
         self._c.setFillColor(HexColor("#3B82F6"))
         self._c.setFont("Helvetica", 10)
-        title = node.extra.get("title", node.chart_type or "chart")
-        self._c.drawCentredString(x + w / 2, y + h / 2, f"[Chart: {title}]")
+        self._c.drawCentredString(x + w / 2, y + h / 2, f"Chart unavailable: {title} ({reason})")
         self._c.restoreState()
+
+    def _build_chart_payload(self, node: IRNode, doc: IRDocument) -> dict:
+        """读取 data_ref 或 inline extra 中的图表数据"""
+        categories = []
+        series_list = []
+        if node.data_ref and node.data_ref in doc.data:
+            ref_val = doc.data[node.data_ref]
+            if isinstance(ref_val, dict):
+                categories = ref_val.get("categories", [])
+                series_list = ref_val.get("series", [])
+
+        if not categories:
+            categories = node.extra.get("categories", [])
+        if not series_list:
+            series_list = node.extra.get("series", [])
+
+        return {
+            "categories": categories,
+            "series": series_list,
+            "title": node.extra.get("title", node.chart_type or "chart"),
+            "chart_type": node.chart_type or node.extra.get("chart_type", "bar"),
+        }
+
+    def _draw_chart_frame(self, x: float, y: float, w: float, h: float, title: str):
+        self._c.setStrokeColor(HexColor("#D8DEE8"))
+        self._c.setFillColor(white)
+        self._c.roundRect(x, y, w, h, 6, fill=1, stroke=1)
+        if title:
+            self._c.setFillColor(HexColor("#0F172A"))
+            self._c.setFont("STSong-Light", 10)
+            self._c.drawString(x + 10, y + h - 14, str(title))
+
+    def _chart_colors(self) -> list[str]:
+        return [
+            "#2563EB", "#16A34A", "#EA580C", "#9333EA",
+            "#E11D48", "#0891B2", "#CA8A04", "#4F46E5",
+        ]
+
+    def _numeric_max(self, series_list: list[dict]) -> float:
+        vals = []
+        for series in series_list:
+            vals.extend(v for v in series.get("values", []) if isinstance(v, (int, float)))
+        return max(vals) if vals else 1.0
+
+    def _draw_axes(self, x: float, y: float, w: float, h: float, max_val: float):
+        self._c.setStrokeColor(HexColor("#CBD5E1"))
+        self._c.line(x, y, x + w, y)
+        self._c.line(x, y, x, y + h)
+        self._c.setFillColor(HexColor("#64748B"))
+        self._c.setFont("Helvetica", 7)
+        for i in range(1, 5):
+            gy = y + h * i / 4
+            self._c.setStrokeColor(HexColor("#EEF2F7"))
+            self._c.line(x, gy, x + w, gy)
+            self._c.drawRightString(x - 3, gy - 2, f"{max_val * i / 4:.0f}")
+
+    def _draw_bar_chart(self, x: float, y: float, w: float, h: float, categories: list, series_list: list[dict]):
+        max_val = max(self._numeric_max(series_list), 1.0)
+        label_h = 12
+        plot_h = max(h - label_h, 10)
+        axis_x = x + 22
+        axis_w = max(w - 28, 10)
+        self._draw_axes(axis_x, y + label_h, axis_w, plot_h, max_val)
+
+        colors = self._chart_colors()
+        cat_count = max(len(categories), 1)
+        series_count = max(len(series_list), 1)
+        group_w = axis_w / cat_count
+        bar_w = max(group_w / (series_count + 1.2), 2)
+
+        for ci, category in enumerate(categories):
+            base_x = axis_x + ci * group_w + (group_w - bar_w * series_count) / 2
+            for si, series in enumerate(series_list):
+                values = series.get("values", [])
+                val = values[ci] if ci < len(values) and isinstance(values[ci], (int, float)) else 0
+                bar_h = plot_h * max(val, 0) / max_val
+                self._c.setFillColor(HexColor(colors[si % len(colors)]))
+                self._c.rect(base_x + si * bar_w, y + label_h, bar_w * 0.82, bar_h, fill=1, stroke=0)
+            self._c.setFillColor(HexColor("#64748B"))
+            self._c.setFont("STSong-Light", 6)
+            self._c.drawCentredString(axis_x + ci * group_w + group_w / 2, y + 2, str(category)[:8])
+
+    def _draw_line_chart(self, x: float, y: float, w: float, h: float, categories: list, series_list: list[dict]):
+        max_val = max(self._numeric_max(series_list), 1.0)
+        label_h = 12
+        plot_h = max(h - label_h, 10)
+        axis_x = x + 22
+        axis_w = max(w - 28, 10)
+        self._draw_axes(axis_x, y + label_h, axis_w, plot_h, max_val)
+        colors = self._chart_colors()
+        point_count = max(len(categories), 1)
+        step = axis_w / max(point_count - 1, 1)
+
+        for si, series in enumerate(series_list):
+            values = series.get("values", [])
+            points = []
+            for i, val in enumerate(values[:point_count]):
+                if not isinstance(val, (int, float)):
+                    continue
+                px = axis_x + i * step
+                py = y + label_h + plot_h * max(val, 0) / max_val
+                points.append((px, py))
+            if len(points) >= 2:
+                self._c.setStrokeColor(HexColor(colors[si % len(colors)]))
+                self._c.setLineWidth(1.5)
+                for p1, p2 in zip(points, points[1:]):
+                    self._c.line(p1[0], p1[1], p2[0], p2[1])
+            self._c.setFillColor(HexColor(colors[si % len(colors)]))
+            for px, py in points:
+                self._c.circle(px, py, 2, fill=1, stroke=0)
+
+        self._c.setFillColor(HexColor("#64748B"))
+        self._c.setFont("STSong-Light", 6)
+        for i, category in enumerate(categories):
+            self._c.drawCentredString(axis_x + i * step, y + 2, str(category)[:8])
+
+    def _draw_pie_chart(self, x: float, y: float, w: float, h: float, categories: list, series_list: list[dict]):
+        values = series_list[0].get("values", []) if series_list else []
+        numeric = [float(v) if isinstance(v, (int, float)) and v > 0 else 0 for v in values[:len(categories)]]
+        total = sum(numeric)
+        if total <= 0:
+            return
+
+        colors = self._chart_colors()
+        size = min(w * 0.58, h)
+        cx = x + size / 2
+        cy = y + h / 2
+        radius = size / 2
+        start = 90.0
+        for i, val in enumerate(numeric):
+            extent = -360.0 * val / total
+            self._c.setFillColor(HexColor(colors[i % len(colors)]))
+            self._c.wedge(cx - radius, cy - radius, cx + radius, cy + radius, start, extent, fill=1, stroke=0)
+            start += extent
+
+        legend_x = x + size + 12
+        legend_y = y + h - 12
+        self._c.setFont("STSong-Light", 7)
+        for i, category in enumerate(categories[:8]):
+            ly = legend_y - i * 10
+            self._c.setFillColor(HexColor(colors[i % len(colors)]))
+            self._c.rect(legend_x, ly - 5, 6, 6, fill=1, stroke=0)
+            self._c.setFillColor(HexColor("#334155"))
+            pct = numeric[i] / total * 100 if i < len(numeric) else 0
+            self._c.drawString(legend_x + 9, ly - 5, f"{category} {pct:.0f}%")
 
     def _get_coords(self, pos: IRPosition | None) -> tuple[float, float, float, float]:
         """将 IRPosition (mm, 左上角原点) 转换为 PDF 坐标 (pt, 左下角原点)
