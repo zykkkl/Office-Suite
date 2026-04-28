@@ -42,7 +42,7 @@ from ..base import BaseRenderer, RendererCapability
 
 # 页面尺寸
 PAGE_WIDTH_MM = 254   # 10 inches ≈ 254mm (widescreen)
-PAGE_HEIGHT_MM = 190  # 7.5 inches ≈ 190mm
+PAGE_HEIGHT_MM = 142.875  # 5.625 inches ≈ 142.875mm (widescreen 16:9)
 
 # reportlab 内置字体
 _BUILTIN_FONTS = {
