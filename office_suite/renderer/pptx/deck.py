@@ -629,28 +629,31 @@ class PPTXRenderer(BaseRenderer):
         """将 IRPosition (mm) 转换为 EMU 元组 (left, top, width, height)
 
         使用浮点精度而非 int() 截断，避免坐标偏移。
-        对超出幻灯片边界的元素发出警告（不强制裁剪，保留原始意图）。
+        超出幻灯片边界的元素会被裁剪到边界内。
         """
         x_mm = pos.x_mm
         y_mm = pos.y_mm
         w_mm = pos.width_mm if pos.width_mm > 0 else (SLIDE_WIDTH_MM - x_mm)
         h_mm = pos.height_mm if pos.height_mm > 0 else 7.5  # 默认 7.5mm
 
-        # 越界检测：元素底部超出幻灯片高度时发出警告
-        bottom_mm = y_mm + h_mm
-        right_mm = x_mm + w_mm
-        if bottom_mm > SLIDE_HEIGHT_MM + 0.5:  # 0.5mm 容差
-            print(
-                f"[WARN] 元素超出幻灯片底部边界: "
-                f"y={y_mm:.1f}mm + h={h_mm:.1f}mm = {bottom_mm:.1f}mm "
-                f"(幻灯片高度 {SLIDE_HEIGHT_MM}mm)"
-            )
-        if right_mm > SLIDE_WIDTH_MM + 0.5:
-            print(
-                f"[WARN] 元素超出幻灯片右侧边界: "
-                f"x={x_mm:.1f}mm + w={w_mm:.1f}mm = {right_mm:.1f}mm "
-                f"(幻灯片宽度 {SLIDE_WIDTH_MM}mm)"
-            )
+        # 越界裁剪：确保元素不超出幻灯片边界
+        if y_mm + h_mm > SLIDE_HEIGHT_MM:
+            original_h = h_mm
+            h_mm = max(0, SLIDE_HEIGHT_MM - y_mm)
+            if h_mm < original_h:
+                print(
+                    f"[CLIP] 元素高度被裁剪: "
+                    f"y={y_mm:.1f}mm, h: {original_h:.1f}mm -> {h_mm:.1f}mm"
+                )
+
+        if x_mm + w_mm > SLIDE_WIDTH_MM:
+            original_w = w_mm
+            w_mm = max(0, SLIDE_WIDTH_MM - x_mm)
+            if w_mm < original_w:
+                print(
+                    f"[CLIP] 元素宽度被裁剪: "
+                    f"x={x_mm:.1f}mm, w: {original_w:.1f}mm -> {w_mm:.1f}mm"
+                )
 
         left = Mm(x_mm)
         top = Mm(y_mm)

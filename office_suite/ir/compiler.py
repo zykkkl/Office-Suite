@@ -453,7 +453,22 @@ def compile_slide(
                 # 根据元素类型估算高度
                 if ir_elem.node_type == NodeType.TEXT:
                     font_size = ir_elem.style.font_size if ir_elem.style else 18
-                    child_h = max(font_size * 0.5, 8)  # 粗略估算：字号 * 0.5mm
+                    content = ir_elem.content or ""
+                    # 估算文本宽度：中文字符约 0.6 * 字号，英文约 0.3 * 字号
+                    text_width = 0
+                    for ch in content:
+                        if ord(ch) > 127:  # 中文字符
+                            text_width += font_size * 0.6
+                        else:
+                            text_width += font_size * 0.3
+                    # 转换为 mm (1pt ≈ 0.3528mm)
+                    text_width_mm = text_width * 0.3528
+                    # 计算行数
+                    content_width = float(slide_extra.get("content_width", 194)) if isinstance(slide_extra, dict) else 194
+                    lines = max(1, int(text_width_mm / content_width) + 1)
+                    # 每行高度：字号 * 1.2（行间距）* 0.3528mm/pt
+                    line_height = font_size * 1.2 * 0.3528
+                    child_h = lines * line_height + 2.54  # 加上 margin
                 elif ir_elem.node_type == NodeType.SHAPE:
                     child_h = 2  # 线条默认 2mm
                 else:
