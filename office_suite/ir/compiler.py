@@ -274,14 +274,74 @@ def compile_element(
     if isinstance(source, dict):
         source = source  # 保留 dict 形式
 
-    # 子节点
+    # 子节点 — 支持 stack 布局自动排列
     children = []
+    stack_layout = elem.extra.get("layout", "") == "stack"
+    stack_spacing = float(elem.extra.get("spacing", 5))  # 默认 5mm 间距
+    stack_cursor_y = float(elem.extra.get("padding_top", 0))  # 起始 y 偏移
+
     for i, child in enumerate(elem.children):
         child_path = f"{path}/{child.type}[{i}]"
-        children.append(compile_element(
+
+        # stack 布局：自动计算子元素 y 坐标
+        if stack_layout and child.position is None:
+            # shape 默认高度
+            default_h = None
+            if child.type == "shape":
+                shape_type = child.extra.get("shape_type", "rectangle")
+                if shape_type == "line":
+                    default_h = 2
+                else:
+                    default_h = 10
+
+            # 处理 extra.center → position.center
+            extra_copy = dict(child.extra)
+            center_flag = extra_copy.pop("center", False)
+
+            child_pos = PositionSpec(
+                x=elem.extra.get("padding_left", 0),
+                y=stack_cursor_y,
+                width=elem.extra.get("content_width"),
+                height=default_h,
+                center=bool(center_flag),
+            )
+            child = Element(
+                type=child.type,
+                content=child.content,
+                source=child.source,
+                style=child.style,
+                position=child_pos,
+                data_ref=child.data_ref,
+                chart_type=child.chart_type,
+                query=child.query,
+                prompt=child.prompt,
+                size=child.size,
+                opacity=child.opacity,
+                filter=child.filter,
+                animation=child.animation,
+                children=child.children,
+                extra=extra_copy,
+            )
+
+        ir_child = compile_element(
             child, global_styles, doc_styles, theme_name,
             ir_pos.width_mm or parent_w, ir_pos.height_mm or parent_h, child_path,
-        ))
+        )
+        children.append(ir_child)
+
+        # stack 布局：更新游标 y
+        if stack_layout:
+            child_h = ir_child.position.height_mm if ir_child.position else 0
+            if child_h <= 0:
+                # 根据元素类型估算高度
+                if ir_child.node_type == NodeType.TEXT:
+                    font_size = ir_child.style.font_size if ir_child.style else 18
+                    child_h = max(font_size * 0.5, 8)
+                elif ir_child.node_type == NodeType.SHAPE:
+                    child_h = 2
+                else:
+                    child_h = 10
+            stack_cursor_y += child_h + stack_spacing
 
     # 动画
     animations = _parse_animations(elem.animation)
@@ -314,14 +374,91 @@ def compile_slide(
     theme_name: str,
     index: int,
 ) -> IRNode:
-    """将 DSL Slide 编译为 IRNode (NodeType.SLIDE)"""
+    """将 DSL Slide 编译为 IRNode (NodeType.SLIDE)
+
+    支持 stack 布局模式：layout: stack
+    - 子元素自动从上到下排列，不需要手动指定 y 坐标
+    - 支持 spacing（间距）、padding_top/left（内边距）、content_width（内容宽度）
+    - 未指定 position 的元素自动进入 stack 流
+    - 指定了 position 的元素不受 stack 影响（绝对定位）
+    """
+    # 检测 slide 级别的 stack 布局
+    slide_stack = slide.layout == "stack"
+    slide_extra = slide.background or {}
+    if isinstance(slide_extra, dict):
+        stack_spacing = float(slide_extra.get("spacing", 8))  # 默认 8mm 间距
+        padding_top = float(slide_extra.get("padding_top", 15))  # 默认上边距 15mm
+        padding_left = float(slide_extra.get("padding_left", 30))  # 默认左边距 30mm
+        content_width = slide_extra.get("content_width", 194)  # 默认内容宽度 194mm
+    else:
+        stack_spacing = 8
+        padding_top = 15
+        padding_left = 30
+        content_width = 194
+
     children = []
+    stack_cursor_y = padding_top
+
     for i, elem in enumerate(slide.elements):
+        # stack 布局：为没有 position 的元素自动计算位置
+        if slide_stack and elem.position is None:
+            # shape 默认高度：line 类型用 2mm，其他用 10mm
+            default_h = None
+            if elem.type == "shape":
+                shape_type = elem.extra.get("shape_type", "rectangle")
+                if shape_type == "line":
+                    default_h = 2
+                else:
+                    default_h = 10
+
+            # 处理 extra.center → position.center
+            extra_copy = dict(elem.extra)
+            center_flag = extra_copy.pop("center", False)
+
+            auto_pos = PositionSpec(
+                x=padding_left,
+                y=stack_cursor_y,
+                width=content_width,
+                height=default_h,
+                center=bool(center_flag),
+            )
+            elem = Element(
+                type=elem.type,
+                content=elem.content,
+                source=elem.source,
+                style=elem.style,
+                position=auto_pos,
+                data_ref=elem.data_ref,
+                chart_type=elem.chart_type,
+                query=elem.query,
+                prompt=elem.prompt,
+                size=elem.size,
+                opacity=elem.opacity,
+                filter=elem.filter,
+                animation=elem.animation,
+                children=elem.children,
+                extra=extra_copy,
+            )
+
         ir_elem = compile_element(
             elem, global_styles, doc_ir_styles, theme_name,
             path=f"slide[{index}]/{elem.type}[{i}]",
         )
         children.append(ir_elem)
+
+        # stack 布局：更新游标 y
+        if slide_stack and ir_elem.position:
+            child_h = ir_elem.position.height_mm
+            if child_h <= 0:
+                # 根据元素类型估算高度
+                if ir_elem.node_type == NodeType.TEXT:
+                    font_size = ir_elem.style.font_size if ir_elem.style else 18
+                    child_h = max(font_size * 0.5, 8)  # 粗略估算：字号 * 0.5mm
+                elif ir_elem.node_type == NodeType.SHAPE:
+                    child_h = 2  # 线条默认 2mm
+                else:
+                    child_h = 10  # 其他元素兜底
+            stack_cursor_y += child_h + stack_spacing
 
     extra = {}
     if slide.background:

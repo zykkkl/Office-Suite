@@ -65,6 +65,52 @@ slides:
 > ⚠️ 注意：`y + height` 必须 ≤ 142.875mm，否则内容会超出幻灯片底部。
 > 190.5mm 是 4:3 幻灯片的高度，**不要**用于 16:9 布局。
 
+## Stack 布局容器
+
+避免手动计算 y 坐标，使用 `layout: stack` 让子元素自动纵向排列：
+
+### Slide 级别 Stack
+
+```yaml
+slides:
+  - layout: stack
+    background:
+      color: "#FFFFFF"
+      spacing: 8        # 元素间距，默认 8mm
+      padding_top: 15   # 上边距，默认 15mm
+      padding_left: 30  # 左边距，默认 30mm
+      content_width: 194 # 内容宽度，默认 194mm
+    elements:
+      - type: text
+        content: "标题"     # 不需要写 position，自动排列
+      - type: text
+        content: "正文内容" # 自动接在标题下方
+```
+
+### 元素级别 Stack（Group 容器）
+
+```yaml
+- type: group
+  position: { x: 20mm, y: 30mm, width: 214mm, height: 100mm }
+  extra:
+    layout: stack
+    spacing: 5
+    padding_top: 10
+    padding_left: 10
+    content_width: 190
+  children:
+    - type: text
+      content: "第一行"
+    - type: text
+      content: "第二行"
+```
+
+### 规则
+
+- 没有 `position` 的元素自动进入 stack 流
+- 有 `position` 的元素保持绝对定位，不参与 stack 排列
+- stack 不会裁剪内容，超出容器的部分仍然渲染（配合越界警告排查）
+
 ## 特性分级
 
 | 等级 | 特性 |

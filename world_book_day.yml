@@ -43,7 +43,7 @@ styles:
       italic: true
 
 slides:
-  # 第1页：封面
+  # 第1页：封面（绝对定位，居中布局不适合 stack）
   - layout: blank
     background:
       gradient:
@@ -66,7 +66,7 @@ slides:
         content: "4月23日"
         position:
           x: 30mm
-          y: 40mm
+          y: 30mm
           width: 194mm
           height: 15mm
           center: true
@@ -82,7 +82,7 @@ slides:
         style: title
         position:
           x: 30mm
-          y: 60mm
+          y: 50mm
           width: 194mm
           height: 25mm
           center: true
@@ -91,7 +91,7 @@ slides:
         shape_type: rectangle
         position:
           x: 100mm
-          y: 90mm
+          y: 80mm
           width: 54mm
           height: 2mm
         fill:
@@ -101,7 +101,7 @@ slides:
         content: "World Book Day"
         position:
           x: 30mm
-          y: 100mm
+          y: 88mm
           width: 194mm
           height: 15mm
           center: true
@@ -116,7 +116,7 @@ slides:
         content: "阅读，让世界触手可及"
         position:
           x: 30mm
-          y: 130mm
+          y: 110mm
           width: 194mm
           height: 12mm
           center: true
@@ -127,96 +127,61 @@ slides:
             weight: 400
             color: "#87CEEB"
 
-  # 第2页：目录
-  - layout: blank
+  # 第2页：目录 — 使用 stack 布局，不需要写 y 坐标
+  - layout: stack
     background:
       color: "#F8FAFC"
+      spacing: 5
+      padding_top: 20
+      padding_left: 40
+      content_width: 170
     elements:
       - type: text
         content: "目录"
         style: heading
-        position:
-          x: 30mm
-          y: 25mm
-          width: 194mm
-          height: 15mm
 
       - type: shape
         shape_type: rectangle
-        position:
-          x: 30mm
-          y: 42mm
-          width: 30mm
-          height: 2mm
-        fill:
-          color: "#2563EB"
+        size: { width: 30mm, height: 2mm }
+        style:
+          fill:
+            color: "#2563EB"
 
       - type: text
         content: "01  节日起源"
         style: body
-        position:
-          x: 40mm
-          y: 60mm
-          width: 170mm
-          height: 12mm
 
       - type: text
         content: "02  为什么要读书"
         style: body
-        position:
-          x: 40mm
-          y: 80mm
-          width: 170mm
-          height: 12mm
 
       - type: text
         content: "03  读书的益处"
         style: body
-        position:
-          x: 40mm
-          y: 100mm
-          width: 170mm
-          height: 12mm
 
       - type: text
         content: "04  如何培养阅读习惯"
         style: body
-        position:
-          x: 40mm
-          y: 120mm
-          width: 170mm
-          height: 12mm
 
       - type: text
         content: "05  名人与书"
         style: body
-        position:
-          x: 40mm
-          y: 110mm
-          width: 170mm
-          height: 12mm
 
       - type: text
         content: "06  让阅读成为习惯"
         style: body
-        position:
-          x: 40mm
-          y: 128mm
-          width: 170mm
-          height: 12mm
 
-  # 第3页：节日起源
-  - layout: blank
+  # 第3页：节日起源 — 使用 stack 布局
+  - layout: stack
     background:
       color: "#FFFFFF"
+      spacing: 5
+      padding_top: 15
+      padding_left: 30
+      content_width: 194
     elements:
       - type: text
         content: "01"
-        position:
-          x: 30mm
-          y: 20mm
-          width: 30mm
-          height: 20mm
         style:
           font:
             family: "Arial"
@@ -227,77 +192,35 @@ slides:
       - type: text
         content: "节日起源"
         style: heading
-        position:
-          x: 30mm
-          y: 45mm
-          width: 194mm
-          height: 15mm
 
       - type: shape
         shape_type: rectangle
-        position:
-          x: 30mm
-          y: 62mm
-          width: 30mm
-          height: 2mm
-        fill:
-          color: "#2563EB"
+        size: { width: 30mm, height: 2mm }
+        style:
+          fill:
+            color: "#2563EB"
 
       - type: text
         content: "世界读书日的全称是「世界图书与版权日」，又称「世界图书日」。"
         style: body
-        position:
-          x: 30mm
-          y: 75mm
-          width: 194mm
-          height: 12mm
 
       - type: text
-        content: "1995年，联合国教科文组织宣布4月23日为「世界读书日」，"
+        content: "1995年，联合国教科文组织宣布4月23日为「世界读书日」，致力于向全世界推广阅读、出版和知识产权保护。"
         style: body
-        position:
-          x: 30mm
-          y: 95mm
-          width: 194mm
-          height: 12mm
-
-      - type: text
-        content: "致力于向全世界推广阅读、出版和知识产权保护。"
-        style: body
-        position:
-          x: 30mm
-          y: 110mm
-          width: 194mm
-          height: 12mm
 
       - type: text
         content: "选择4月23日的原因："
         style: accent
-        position:
-          x: 30mm
-          y: 100mm
-          width: 194mm
-          height: 12mm
 
       - type: text
         content: "• 西班牙加泰罗尼亚地区的「圣乔治节」传统"
         style: body
-        position:
-          x: 40mm
-          y: 118mm
-          width: 180mm
-          height: 10mm
 
       - type: text
         content: "• 塞万提斯、莎士比亚等文学巨匠的纪念日"
         style: body
-        position:
-          x: 40mm
-          y: 131mm
-          width: 180mm
-          height: 10mm
 
-  # 第4页：为什么要读书
+  # 第4页：为什么要读书（卡片布局需要绝对定位）
   - layout: blank
     background:
       color: "#FFFFFF"
@@ -306,7 +229,7 @@ slides:
         content: "02"
         position:
           x: 30mm
-          y: 20mm
+          y: 15mm
           width: 30mm
           height: 20mm
         style:
@@ -321,7 +244,7 @@ slides:
         style: heading
         position:
           x: 30mm
-          y: 45mm
+          y: 38mm
           width: 194mm
           height: 15mm
 
@@ -329,7 +252,7 @@ slides:
         shape_type: rectangle
         position:
           x: 30mm
-          y: 62mm
+          y: 55mm
           width: 30mm
           height: 2mm
         fill:
@@ -340,9 +263,9 @@ slides:
         content: "开拓视野\n丰富知识"
         position:
           x: 25mm
-          y: 80mm
+          y: 65mm
           width: 60mm
-          height: 45mm
+          height: 40mm
         style:
           fill:
             color: "#EFF6FF"
@@ -357,9 +280,9 @@ slides:
         content: "提升思维\n增强能力"
         position:
           x: 97mm
-          y: 80mm
+          y: 65mm
           width: 60mm
-          height: 45mm
+          height: 40mm
         style:
           fill:
             color: "#F0FDF4"
@@ -374,9 +297,9 @@ slides:
         content: "陶冶情操\n滋养心灵"
         position:
           x: 169mm
-          y: 80mm
+          y: 65mm
           width: 60mm
-          height: 45mm
+          height: 40mm
         style:
           fill:
             color: "#FFF7ED"
@@ -391,40 +314,30 @@ slides:
         style: body
         position:
           x: 30mm
-          y: 100mm
+          y: 112mm
           width: 194mm
-          height: 12mm
+          height: 10mm
 
       - type: text
-        content: "在信息爆炸的时代，深度阅读帮助我们建立系统化的知识体系，"
+        content: "在信息爆炸的时代，深度阅读帮助我们建立系统化的知识体系，培养独立思考的能力。"
         style: body
         position:
           x: 30mm
-          y: 115mm
+          y: 124mm
           width: 194mm
-          height: 12mm
+          height: 10mm
 
-      - type: text
-        content: "培养独立思考的能力，抵御碎片化信息的侵蚀。"
-        style: body
-        position:
-          x: 30mm
-          y: 130mm
-          width: 194mm
-          height: 12mm
-
-  # 第5页：读书的益处
-  - layout: blank
+  # 第5页：读书的益处 — 使用 stack 布局
+  - layout: stack
     background:
       color: "#FFFFFF"
+      spacing: 3
+      padding_top: 12
+      padding_left: 30
+      content_width: 194
     elements:
       - type: text
         content: "03"
-        position:
-          x: 30mm
-          y: 20mm
-          width: 30mm
-          height: 20mm
         style:
           font:
             family: "Arial"
@@ -435,86 +348,43 @@ slides:
       - type: text
         content: "读书的益处"
         style: heading
-        position:
-          x: 30mm
-          y: 45mm
-          width: 194mm
-          height: 15mm
 
       - type: shape
         shape_type: rectangle
-        position:
-          x: 30mm
-          y: 62mm
-          width: 30mm
-          height: 2mm
-        fill:
-          color: "#2563EB"
+        size: { width: 30mm, height: 2mm }
+        style:
+          fill:
+            color: "#2563EB"
 
       - type: text
         content: "个人成长"
         style: accent
-        position:
-          x: 30mm
-          y: 80mm
-          width: 194mm
-          height: 12mm
 
       - type: text
         content: "• 提高语言表达和写作能力"
         style: body
-        position:
-          x: 40mm
-          y: 100mm
-          width: 180mm
-          height: 10mm
 
       - type: text
         content: "• 增强逻辑思维和分析能力"
         style: body
-        position:
-          x: 40mm
-          y: 115mm
-          width: 180mm
-          height: 10mm
 
       - type: text
         content: "• 激发创造力和想象力"
         style: body
-        position:
-          x: 40mm
-          y: 130mm
-          width: 180mm
-          height: 10mm
 
       - type: text
         content: "身心健康"
         style: accent
-        position:
-          x: 30mm
-          y: 95mm
-          width: 194mm
-          height: 12mm
 
       - type: text
         content: "• 降低压力，缓解焦虑情绪"
         style: body
-        position:
-          x: 40mm
-          y: 110mm
-          width: 180mm
-          height: 10mm
 
       - type: text
         content: "• 延缓认知衰退，预防老年痴呆"
         style: body
-        position:
-          x: 40mm
-          y: 125mm
-          width: 180mm
-          height: 10mm
 
-  # 第6页：如何培养阅读习惯
+  # 第6页：如何培养阅读习惯（表格需要绝对定位）
   - layout: blank
     background:
       color: "#FFFFFF"
@@ -523,7 +393,7 @@ slides:
         content: "04"
         position:
           x: 30mm
-          y: 20mm
+          y: 15mm
           width: 30mm
           height: 20mm
         style:
@@ -538,7 +408,7 @@ slides:
         style: heading
         position:
           x: 30mm
-          y: 45mm
+          y: 38mm
           width: 194mm
           height: 15mm
 
@@ -546,7 +416,7 @@ slides:
         shape_type: rectangle
         position:
           x: 30mm
-          y: 62mm
+          y: 55mm
           width: 30mm
           height: 2mm
         fill:
@@ -555,9 +425,9 @@ slides:
       - type: table
         position:
           x: 30mm
-          y: 75mm
+          y: 65mm
           width: 194mm
-          height: 60mm
+          height: 65mm
         rows: 5
         cols: 2
         data:
@@ -567,18 +437,17 @@ slides:
           - ["营造环境", "打造专属阅读角，远离手机干扰"]
           - ["加入社群", "参与读书会，分享阅读心得"]
 
-  # 第7页：名人与书
-  - layout: blank
+  # 第7页：名人与书 — 使用 stack 布局
+  - layout: stack
     background:
       color: "#FFFFFF"
+      spacing: 3
+      padding_top: 15
+      padding_left: 30
+      content_width: 194
     elements:
       - type: text
         content: "05"
-        position:
-          x: 30mm
-          y: 20mm
-          width: 30mm
-          height: 20mm
         style:
           font:
             family: "Arial"
@@ -589,97 +458,64 @@ slides:
       - type: text
         content: "名人与书"
         style: heading
-        position:
-          x: 30mm
-          y: 45mm
-          width: 194mm
-          height: 15mm
 
       - type: shape
         shape_type: rectangle
-        position:
-          x: 30mm
-          y: 62mm
-          width: 30mm
-          height: 2mm
-        fill:
-          color: "#2563EB"
+        size: { width: 30mm, height: 2mm }
+        style:
+          fill:
+            color: "#2563EB"
 
       - type: text
         content: "「读书破万卷，下笔如有神。」"
         style: quote
-        position:
-          x: 30mm
-          y: 50mm
-          width: 194mm
-          height: 12mm
+        extra:
           center: true
 
       - type: text
         content: "—— 杜甫"
         style: body
-        position:
-          x: 30mm
-          y: 63mm
-          width: 194mm
-          height: 8mm
+        extra:
           center: true
 
       - type: text
         content: "「书是人类进步的阶梯。」"
         style: quote
-        position:
-          x: 30mm
-          y: 83mm
-          width: 194mm
-          height: 12mm
+        extra:
           center: true
 
       - type: text
         content: "—— 高尔基"
         style: body
-        position:
-          x: 30mm
-          y: 96mm
-          width: 194mm
-          height: 8mm
+        extra:
           center: true
 
       - type: text
         content: "「读一本好书，就是和许多高尚的人谈话。」"
         style: quote
-        position:
-          x: 30mm
-          y: 120mm
-          width: 194mm
-          height: 12mm
+        extra:
           center: true
 
       - type: text
         content: "—— 笛卡尔"
         style: body
-        position:
-          x: 30mm
-          y: 133mm
-          width: 194mm
-          height: 8mm
+        extra:
           center: true
 
-  # 第8页：让阅读成为习惯
-  - layout: blank
+  # 第8页：让阅读成为习惯 — 使用 stack 布局
+  - layout: stack
     background:
       gradient:
         type: linear
         angle: 135
         stops: ["#1E3A5F", "#2D5F8A"]
+      spacing: 4
+      padding_top: 15
+      padding_left: 50
+      content_width: 154
     elements:
       - type: text
         content: "06"
-        position:
-          x: 30mm
-          y: 20mm
-          width: 30mm
-          height: 20mm
         style:
           font:
             family: "Arial"
@@ -690,11 +526,7 @@ slides:
 
       - type: text
         content: "让阅读成为习惯"
-        position:
-          x: 30mm
-          y: 50mm
-          width: 194mm
-          height: 15mm
+        extra:
           center: true
         style:
           font:
@@ -705,21 +537,14 @@ slides:
 
       - type: shape
         shape_type: rectangle
-        position:
-          x: 100mm
-          y: 70mm
-          width: 54mm
-          height: 2mm
-        fill:
-          color: "#B0C4DE"
+        size: { width: 54mm, height: 2mm }
+        style:
+          fill:
+            color: "#B0C4DE"
 
       - type: text
         content: "今天是世界读书日，让我们一起："
-        position:
-          x: 30mm
-          y: 65mm
-          width: 194mm
-          height: 12mm
+        extra:
           center: true
         style:
           font:
@@ -730,11 +555,6 @@ slides:
 
       - type: text
         content: "• 放下手机，拿起书本"
-        position:
-          x: 50mm
-          y: 85mm
-          width: 154mm
-          height: 12mm
         style:
           font:
             family: "Microsoft YaHei UI"
@@ -744,11 +564,6 @@ slides:
 
       - type: text
         content: "• 享受阅读的乐趣"
-        position:
-          x: 50mm
-          y: 103mm
-          width: 154mm
-          height: 12mm
         style:
           font:
             family: "Microsoft YaHei UI"
@@ -758,11 +573,6 @@ slides:
 
       - type: text
         content: "• 让知识照亮人生"
-        position:
-          x: 50mm
-          y: 121mm
-          width: 154mm
-          height: 12mm
         style:
           font:
             family: "Microsoft YaHei UI"
@@ -772,11 +582,7 @@ slides:
 
       - type: text
         content: "世界读书日快乐！"
-        position:
-          x: 30mm
-          y: 130mm
-          width: 194mm
-          height: 12mm
+        extra:
           center: true
         style:
           font:
