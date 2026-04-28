@@ -58,6 +58,30 @@ class LintReport:
         return "\n".join(lines)
 
 
+def _node_type(node: IRNode):
+    return getattr(node, "node_type", getattr(node, "type", None))
+
+
+def _node_label(node: IRNode) -> str:
+    node_type = _node_type(node)
+    type_label = node_type.value if hasattr(node_type, "value") else str(node_type)
+    return str(getattr(node, "content", "") or type_label)
+
+
+def _pos_attr(pos, name: str) -> float:
+    modern = {
+        "x": "x_mm",
+        "y": "y_mm",
+        "width": "width_mm",
+        "height": "height_mm",
+    }[name]
+    return float(getattr(pos, modern, getattr(pos, name, 0)) or 0)
+
+
+def _style_attr(style, name: str):
+    return getattr(style, name, None)
+
+
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     h = hex_color.lstrip("#")
     if len(h) == 3:
@@ -83,7 +107,12 @@ def _check_overlap(nodes: list[IRNode], report: LintReport):
     """检测元素重叠"""
     positioned = []
     for n in nodes:
-        if n.position and n.position.width > 0 and n.position.height > 0:
+        if (
+            _node_type(n) == NodeType.TEXT
+            and n.position
+            and _pos_attr(n.position, "width") > 0
+            and _pos_attr(n.position, "height") > 0
+        ):
             positioned.append(n)
 
     for i in range(len(positioned)):
@@ -91,27 +120,30 @@ def _check_overlap(nodes: list[IRNode], report: LintReport):
             a, b = positioned[i], positioned[j]
             pa, pb = a.position, b.position
             # AABB 重叠检测
-            if (pa.x < pb.x + pb.width and pa.x + pa.width > pb.x and
-                    pa.y < pb.y + pb.height and pa.y + pa.height > pb.y):
-                overlap_x = min(pa.x + pa.width, pb.x + pb.width) - max(pa.x, pb.x)
-                overlap_y = min(pa.y + pa.height, pb.y + pb.height) - max(pa.y, pb.y)
+            ax, ay = _pos_attr(pa, "x"), _pos_attr(pa, "y")
+            aw, ah = _pos_attr(pa, "width"), _pos_attr(pa, "height")
+            bx, by = _pos_attr(pb, "x"), _pos_attr(pb, "y")
+            bw, bh = _pos_attr(pb, "width"), _pos_attr(pb, "height")
+            if (ax < bx + bw and ax + aw > bx and ay < by + bh and ay + ah > by):
+                overlap_x = min(ax + aw, bx + bw) - max(ax, bx)
+                overlap_y = min(ay + ah, by + bh) - max(ay, by)
                 overlap_area = overlap_x * overlap_y
-                min_area = min(pa.width * pa.height, pb.width * pb.height)
+                min_area = min(aw * ah, bw * bh)
                 if min_area > 0 and overlap_area / min_area > 0.1:
                     report.issues.append(LintIssue(
                         LintSeverity.WARNING, "overlap",
-                        f"'{a.content or a.type}' 与 '{b.content or b.type}' 重叠 "
-                        f"({overlap_area:.0f}mm²)",
+                        f"'{_node_label(a)}' 与 '{_node_label(b)}' 重叠 "
+                        f"({overlap_area:.0f}mm^2)",
                         suggestion="调整位置或尺寸避免重叠"))
 
 
 def _check_contrast(nodes: list[IRNode], report: LintReport):
     """检查文本与背景对比度"""
     for n in nodes:
-        if n.type != NodeType.TEXT or not n.style:
+        if _node_type(n) != NodeType.TEXT or not n.style:
             continue
-        text_color = n.style.font.color if n.style.font else None
-        bg_color = n.style.fill.color if n.style.fill else None
+        text_color = _style_attr(n.style, "font_color")
+        bg_color = _style_attr(n.style, "fill_color")
         if not text_color or not bg_color:
             continue
         if not text_color.startswith("#") or not bg_color.startswith("#"):
@@ -133,8 +165,8 @@ def _check_font_hierarchy(nodes: list[IRNode], report: LintReport):
     """检查字号层次是否合理"""
     sizes = []
     for n in nodes:
-        if n.type == NodeType.TEXT and n.style and n.style.font and n.style.font.size:
-            sizes.append(n.style.font.size)
+        if _node_type(n) == NodeType.TEXT and n.style and _style_attr(n.style, "font_size"):
+            sizes.append(_style_attr(n.style, "font_size"))
     if len(sizes) < 2:
         return
     unique_sizes = sorted(set(sizes), reverse=True)
@@ -158,10 +190,10 @@ def _check_color_count(nodes: list[IRNode], report: LintReport):
     """检查颜色数量"""
     colors = set()
     for n in nodes:
-        if n.style and n.style.font and n.style.font.color:
-            colors.add(n.style.font.color)
-        if n.style and n.style.fill and n.style.fill.color:
-            colors.add(n.style.fill.color)
+        if n.style and _style_attr(n.style, "font_color"):
+            colors.add(_style_attr(n.style, "font_color"))
+        if n.style and _style_attr(n.style, "fill_color"):
+            colors.add(_style_attr(n.style, "fill_color"))
     if len(colors) > 8:
         report.issues.append(LintIssue(
             LintSeverity.WARNING, "color_count",
@@ -177,19 +209,23 @@ def _check_spacing(nodes: list[IRNode], report: LintReport):
             if not a.position or not b.position:
                 continue
             pa, pb = a.position, b.position
+            ax, ay = _pos_attr(pa, "x"), _pos_attr(pa, "y")
+            aw, ah = _pos_attr(pa, "width"), _pos_attr(pa, "height")
+            bx, by = _pos_attr(pb, "x"), _pos_attr(pb, "y")
+            bw, bh = _pos_attr(pb, "width"), _pos_attr(pb, "height")
             # 检查水平或垂直间距
-            h_gap = max(0, pb.x - (pa.x + pa.width), pa.x - (pb.x + pb.width))
-            v_gap = max(0, pb.y - (pa.y + pa.height), pa.y - (pb.y + pb.height))
+            h_gap = max(0, bx - (ax + aw), ax - (bx + bw))
+            v_gap = max(0, by - (ay + ah), ay - (by + bh))
             # 如果两元素在相近的行/列且间距太小
-            if (abs(pa.y - pb.y) < 5 and 0 < h_gap < 3):
+            if (abs(ay - by) < 5 and 0 < h_gap < 3):
                 report.issues.append(LintIssue(
                     LintSeverity.INFO, "spacing",
-                    f"'{a.content or a.type}' 与 '{b.content or b.type}' 水平间距仅 {h_gap:.1f}mm",
+                    f"'{_node_label(a)}' 与 '{_node_label(b)}' 水平间距仅 {h_gap:.1f}mm",
                     suggestion="建议间距 >= 5mm"))
-            if (abs(pa.x - pb.x) < 5 and 0 < v_gap < 3):
+            if (abs(ax - bx) < 5 and 0 < v_gap < 3):
                 report.issues.append(LintIssue(
                     LintSeverity.INFO, "spacing",
-                    f"'{a.content or a.type}' 与 '{b.content or b.type}' 垂直间距仅 {v_gap:.1f}mm",
+                    f"'{_node_label(a)}' 与 '{_node_label(b)}' 垂直间距仅 {v_gap:.1f}mm",
                     suggestion="建议间距 >= 5mm"))
 
 
@@ -206,14 +242,18 @@ def lint_ir(ir_doc: IRDocument) -> LintReport:
 
     # 收集所有节点
     all_nodes = []
-    for slide in ir_doc.slides:
+    slides = getattr(ir_doc, "slides", None) or getattr(ir_doc, "children", [])
+    for slide in slides:
         all_nodes.extend(slide.children)
 
-    _check_overlap(all_nodes, report)
     _check_contrast(all_nodes, report)
     _check_font_hierarchy(all_nodes, report)
     _check_color_count(all_nodes, report)
-    _check_spacing(all_nodes, report)
+
+    slides = getattr(ir_doc, "slides", None) or getattr(ir_doc, "children", [])
+    for slide in slides:
+        _check_overlap(slide.children, report)
+        _check_spacing(slide.children, report)
 
     # 计算评分
     for issue in report.issues:

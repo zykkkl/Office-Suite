@@ -225,7 +225,7 @@ class PPTXRenderer(BaseRenderer):
 
         p = tf.paragraphs[0]
         p.text = node.content or ""
-        p.alignment = PP_ALIGN.LEFT
+        self._apply_text_layout(tf, p, node)
 
         if style:
             self._apply_text_style(p, style)
@@ -269,6 +269,7 @@ class PPTXRenderer(BaseRenderer):
             tf.word_wrap = True
             p = tf.paragraphs[0]
             p.text = node.content
+            self._apply_text_layout(tf, p, node)
             if style:
                 self._apply_text_style(p, style)
 
@@ -754,6 +755,55 @@ class PPTXRenderer(BaseRenderer):
             font.italic = italic
         if color:
             font.color.rgb = self._hex_to_rgb(color)
+
+    def _apply_text_layout(self, text_frame, paragraph, node: IRNode):
+        """Apply text box layout options carried in node.extra.
+
+        Supported DSL extras:
+          align: left | center | right
+          vertical_align: top | middle | bottom
+          margin: number in mm, or margins: {left, right, top, bottom}
+        """
+        align = str(node.extra.get("align", node.extra.get("text_align", "left"))).lower()
+        paragraph.alignment = {
+            "left": PP_ALIGN.LEFT,
+            "center": PP_ALIGN.CENTER,
+            "right": PP_ALIGN.RIGHT,
+        }.get(align, PP_ALIGN.LEFT)
+
+        vertical_align = str(node.extra.get(
+            "vertical_align",
+            node.extra.get("verticalAlign", node.extra.get("valign", "top")),
+        )).lower()
+        text_frame.vertical_anchor = {
+            "top": MSO_ANCHOR.TOP,
+            "middle": MSO_ANCHOR.MIDDLE,
+            "center": MSO_ANCHOR.MIDDLE,
+            "bottom": MSO_ANCHOR.BOTTOM,
+        }.get(vertical_align, MSO_ANCHOR.TOP)
+
+        margins = node.extra.get("margins")
+        margin = node.extra.get("margin")
+        if isinstance(margins, dict):
+            text_frame.margin_left = Mm(float(margins.get("left", node.extra.get("margin_left", 0))))
+            text_frame.margin_right = Mm(float(margins.get("right", node.extra.get("margin_right", 0))))
+            text_frame.margin_top = Mm(float(margins.get("top", node.extra.get("margin_top", 0))))
+            text_frame.margin_bottom = Mm(float(margins.get("bottom", node.extra.get("margin_bottom", 0))))
+        elif margin is not None:
+            margin_mm = Mm(float(margin))
+            text_frame.margin_left = margin_mm
+            text_frame.margin_right = margin_mm
+            text_frame.margin_top = margin_mm
+            text_frame.margin_bottom = margin_mm
+        else:
+            if "margin_left" in node.extra:
+                text_frame.margin_left = Mm(float(node.extra["margin_left"]))
+            if "margin_right" in node.extra:
+                text_frame.margin_right = Mm(float(node.extra["margin_right"]))
+            if "margin_top" in node.extra:
+                text_frame.margin_top = Mm(float(node.extra["margin_top"]))
+            if "margin_bottom" in node.extra:
+                text_frame.margin_bottom = Mm(float(node.extra["margin_bottom"]))
 
     def _apply_text_warp(self, shape, text_effect: dict[str, Any]):
         """应用 WordArt 文本变换

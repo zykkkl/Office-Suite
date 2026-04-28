@@ -1,0 +1,6 @@
+slide:
+  layout: blank
+  elements:
+    - type: text
+      content: "Content"
+      position: { x: 20mm, y: 30mm, width: 120mm, height: 16mm }

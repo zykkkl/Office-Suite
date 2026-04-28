@@ -162,7 +162,55 @@ def parse_data_binding(raw: dict[str, Any]) -> DataBinding:
     )
 
 
-def parse_document(raw: dict[str, Any]) -> Document:
+def _load_slide_refs(page_refs: list[Any], base_dir: Path | None) -> list[dict[str, Any]]:
+    """Load slide/page YAML files referenced by a presentation entry file.
+
+    The legacy format keeps every slide under top-level ``slides``.  The
+    preferred presentation authoring format keeps one slide per YAML file and
+    lists those files under top-level ``pages``:
+
+    pages:
+      - pages/001_cover.yml
+      - pages/002_agenda.yml
+
+    A referenced file may contain a slide object directly, ``slide: {...}``, or
+    ``slides: [...]`` for compatibility with existing examples.
+    """
+    slides: list[dict[str, Any]] = []
+    for index, ref in enumerate(page_refs):
+        if isinstance(ref, dict):
+            if "path" in ref:
+                ref = ref["path"]
+            else:
+                slides.append(ref)
+                continue
+
+        if not isinstance(ref, str):
+            raise TypeError(f"pages[{index}] must be a path string or slide object")
+        if base_dir is None:
+            raise ValueError("String paths in 'pages' require parse_yaml(path); parse_yaml_string cannot resolve them")
+
+        page_path = Path(ref)
+        if not page_path.is_absolute():
+            page_path = base_dir / page_path
+        page_raw = load_yaml(page_path)
+
+        if "slides" in page_raw:
+            raw_slides = page_raw.get("slides") or []
+            if not isinstance(raw_slides, list):
+                raise TypeError(f"{page_path}: slides must be a list")
+            slides.extend(raw_slides)
+        elif "slide" in page_raw:
+            slide = page_raw["slide"]
+            if not isinstance(slide, dict):
+                raise TypeError(f"{page_path}: slide must be an object")
+            slides.append(slide)
+        else:
+            slides.append(page_raw)
+    return slides
+
+
+def parse_document(raw: dict[str, Any], base_dir: Path | None = None) -> Document:
     """解析完整文档"""
     doc_type_str = raw.get("type", "presentation")
     try:
@@ -180,7 +228,14 @@ def parse_document(raw: dict[str, Any]) -> Document:
         if isinstance(val, dict):
             styles[key] = parse_style(val)
 
-    slides = [parse_slide(s) for s in raw.get("slides", [])]
+    raw_slides = list(raw.get("slides", []) or [])
+    page_refs = raw.get("pages", []) or []
+    if page_refs:
+        if not isinstance(page_refs, list):
+            raise TypeError("pages must be a list")
+        raw_slides.extend(_load_slide_refs(page_refs, base_dir))
+
+    slides = [parse_slide(s) for s in raw_slides]
 
     return Document(
         version=raw.get("version", "4.0"),
@@ -204,8 +259,9 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
 
 def parse_yaml(path: str | Path) -> Document:
     """从 YAML 文件解析为 Document"""
+    path = Path(path)
     raw = load_yaml(path)
-    return parse_document(raw)
+    return parse_document(raw, base_dir=path.parent)
 
 
 def parse_yaml_string(yaml_str: str) -> Document:
