@@ -21,8 +21,11 @@
   不支持的特性通过 fallback_map 降级（如 duotone → opacity）。
 """
 
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu, Mm
@@ -641,18 +644,18 @@ class PPTXRenderer(BaseRenderer):
             original_h = h_mm
             h_mm = max(0, SLIDE_HEIGHT_MM - y_mm)
             if h_mm < original_h:
-                print(
-                    f"[CLIP] 元素高度被裁剪: "
-                    f"y={y_mm:.1f}mm, h: {original_h:.1f}mm -> {h_mm:.1f}mm"
+                logger.debug(
+                    "[CLIP] 元素高度被裁剪: y=%.1fmm, h: %.1fmm -> %.1fmm",
+                    y_mm, original_h, h_mm,
                 )
 
         if x_mm + w_mm > SLIDE_WIDTH_MM:
             original_w = w_mm
             w_mm = max(0, SLIDE_WIDTH_MM - x_mm)
             if w_mm < original_w:
-                print(
-                    f"[CLIP] 元素宽度被裁剪: "
-                    f"x={x_mm:.1f}mm, w: {original_w:.1f}mm -> {w_mm:.1f}mm"
+                logger.debug(
+                    "[CLIP] 元素宽度被裁剪: x=%.1fmm, w=%.1fmm -> %.1fmm",
+                    x_mm, original_w, w_mm,
                 )
 
         left = Mm(x_mm)

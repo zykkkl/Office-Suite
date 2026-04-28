@@ -438,8 +438,11 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
         # 转换为 mm (1pt ≈ 0.3528mm)
         text_width_mm = text_width_pt * 0.3528
 
+        # 防止 content_width 为零或负数导致除零
+        safe_width = max(content_width, 1.0)
+
         # 计算行数
-        lines = max(1, int(text_width_mm / content_width) + 1)
+        lines = max(1, int(text_width_mm / safe_width) + 1)
 
         # 每行高度：字号 * 1.2（行间距）* 0.3528mm/pt
         line_height_mm = font_size * 1.2 * 0.3528
@@ -449,52 +452,6 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
 
     # group 和其他类型
     return 10
-
-
-def _is_semantic_boundary(elem: Element, next_elem: Element | None) -> bool:
-    """判断当前位置是否是语义分页边界
-
-    边界规则：
-    - 标题/强调文本（heading/accent 样式）后面是内容，是边界
-    - 分隔线（shape type=line）前后是边界
-    - 列表项（以 • 开头的文本）之间不是边界（应该在一起）
-    - 连续的 body 文本之间不是边界
-    """
-    # 当前元素是分隔线
-    if elem.type == "shape":
-        shape_type = elem.extra.get("shape_type", "")
-        if shape_type in ("line", "rectangle") and elem.size:
-            h = str(elem.size.get("height", "10")).replace("mm", "")
-            try:
-                if float(h) <= 5:  # 矩形分隔线
-                    return True
-            except ValueError:
-                pass
-
-    # 当前元素是标题/强调样式
-    style_name = ""
-    if isinstance(elem.style, str):
-        style_name = elem.style
-    elif isinstance(elem.style, dict):
-        # 检查是否有特殊的 font 颜色或大小
-        font_spec = elem.style.get("font", {})
-        if isinstance(font_spec, dict):
-            size = font_spec.get("size", 18)
-            if size >= 36:  # 大字号视为标题
-                return True
-
-    if style_name in ("heading", "accent", "title", "subtitle"):
-        return True
-
-    # 下一个元素是标题/强调
-    if next_elem:
-        next_style = ""
-        if isinstance(next_elem.style, str):
-            next_style = next_elem.style
-        if next_style in ("heading", "accent", "title", "subtitle"):
-            return True
-
-    return False
 
 
 def _is_chapter_title(elem: Element) -> bool:
