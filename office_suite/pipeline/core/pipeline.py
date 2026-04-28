@@ -35,7 +35,7 @@ from ..parser import parse_pipeline_string, parse_pipeline_file
 class NodeResult:
     """单个节点的执行结果"""
     name: str
-    status: str          # pending / running / success / failed / skipped
+    status: NodeStatus   # 与调度器保持同一枚举类型
     result: Any = None
     error: str = ""
     duration: float = 0.0
@@ -80,7 +80,7 @@ class PipelineResult:
             errors = [
                 f"  {n.name}: {n.error}"
                 for n in self.nodes
-                if n.status == "failed"
+                if n.status == NodeStatus.FAILED
             ]
             raise RuntimeError(
                 f"流水线 '{self.pipeline_name}' 执行失败，"
@@ -113,6 +113,7 @@ class Pipeline:
 
     def __init__(self, graph: PipelineGraph):
         self._graph = graph
+        self._default_variables: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # 工厂方法
@@ -165,7 +166,7 @@ class Pipeline:
         variables: dict[str, Any] | None = None,
         work_dir: str | Path | None = None,
         output_dir: str | Path | None = None,
-        history_dir: str | Path | None = None,
+        history_dir: str | Path = "./history",
         record_history: bool = True,
     ) -> PipelineResult:
         """执行流水线
@@ -175,8 +176,9 @@ class Pipeline:
             variables:      运行时变量（合并到 context.variables）
             work_dir:       工作目录（默认 cwd）
             output_dir:     输出目录（默认 cwd/output）
-            history_dir:    历史记录目录（默认 ./history，None 则不记录）
-            record_history: 是否写入历史记录（默认 True）
+            history_dir:    历史记录目录（默认 "./history"）；
+                            仅在 record_history=True 时生效
+            record_history: False 则完全跳过历史记录写入
 
         Returns:
             PipelineResult
@@ -203,8 +205,7 @@ class Pipeline:
         if record_history:
             try:
                 from ..store.history_store import HistoryStore
-                _hdir = history_dir or "./history"
-                history = HistoryStore(base_dir=_hdir)
+                history = HistoryStore(base_dir=history_dir)
                 history.record_start(
                     self._graph.name or "unnamed",
                     config=self._graph.config,
@@ -228,7 +229,11 @@ class Pipeline:
         failed_nodes: list[str] = []
 
         for name, info in raw_results.items():
-            status = info.get("status", "pending")
+            status_str = info.get("status", "pending")
+            try:
+                status = NodeStatus(status_str)
+            except ValueError:
+                status = NodeStatus.PENDING
             nr = NodeResult(
                 name=name,
                 status=status,
@@ -236,7 +241,7 @@ class Pipeline:
                 error=info.get("error", ""),
             )
             node_results.append(nr)
-            if status == "failed":
+            if status == NodeStatus.FAILED:
                 failed_nodes.append(name)
 
             # 写入历史
@@ -244,7 +249,7 @@ class Pipeline:
                 try:
                     history.record_node(
                         node_name=name,
-                        status=status,
+                        status=status.value,
                         duration=0.0,   # 单节点耗时暂未追踪
                         error=info.get("error") or None,
                     )
