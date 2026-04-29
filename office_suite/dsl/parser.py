@@ -126,7 +126,7 @@ def parse_element(raw: dict[str, Any]) -> Element:
     return Element(
         type=raw.get("type", "text"),
         content=raw.get("content"),
-        source=raw.get("source"),
+        source=raw.get("source", raw.get("src")),
         style=raw.get("style"),  # 可以是字符串引用或内联样式
         position=parse_position(position_raw) if isinstance(position_raw, dict) else None,
         data_ref=raw.get("data_ref"),
@@ -142,11 +142,29 @@ def parse_element(raw: dict[str, Any]) -> Element:
     )
 
 
+def parse_layers(raw: dict[str, Any] | None) -> dict[str, list[Element]]:
+    """解析 slide.layers，允许单个对象或对象列表。"""
+    if not isinstance(raw, dict):
+        return {}
+    layers: dict[str, list[Element]] = {}
+    for layer_name, layer_items in raw.items():
+        if isinstance(layer_items, dict):
+            items = [layer_items]
+        elif isinstance(layer_items, list):
+            items = [item for item in layer_items if isinstance(item, dict)]
+        else:
+            items = []
+        layers[str(layer_name)] = [parse_element(item) for item in items]
+    return layers
+
+
 def parse_slide(raw: dict[str, Any]) -> Slide:
     """解析单张幻灯片"""
     return Slide(
         layout=raw.get("layout", "blank"),
         background=raw.get("background"),
+        background_board=raw.get("background_board"),
+        layers=parse_layers(raw.get("layers")),
         elements=[parse_element(e) for e in raw.get("elements", [])],
         transition=raw.get("transition"),
     )
@@ -242,6 +260,7 @@ def parse_document(raw: dict[str, Any], base_dir: Path | None = None) -> Documen
         type=doc_type,
         theme=raw.get("theme", "default"),
         title=raw.get("title", ""),
+        style_preset=raw.get("style_preset", ""),
         data=data_bindings,
         styles=styles,
         slides=slides,

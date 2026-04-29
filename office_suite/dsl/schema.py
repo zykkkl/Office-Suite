@@ -138,6 +138,8 @@ class Slide:
     """幻灯片 / 节"""
     layout: str = "blank"
     background: dict[str, Any] | None = None
+    background_board: dict[str, Any] | None = None
+    layers: dict[str, list[Element]] = field(default_factory=dict)
     elements: list[Element] = field(default_factory=list)
     transition: dict[str, Any] | None = None
 
@@ -158,6 +160,7 @@ class Document:
     type: DocType = DocType.PRESENTATION
     theme: str = "default"
     title: str = ""
+    style_preset: str = ""  # 设计令牌预设：corporate/editorial/creative/minimal/tech/elegant/flat/chinese/warm
     data: dict[str, DataBinding] = field(default_factory=dict)
     styles: dict[str, StyleSpec] = field(default_factory=dict)
     slides: list[Slide] = field(default_factory=list)

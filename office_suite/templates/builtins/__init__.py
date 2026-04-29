@@ -16,6 +16,7 @@ from . import (
     marketing_plan,
     quarterly_review,
     startup_pitch,
+    cover_styles,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "marketing_plan",
     "quarterly_review",
     "startup_pitch",
+    "cover_styles",
 ]

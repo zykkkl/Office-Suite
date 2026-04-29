@@ -7,7 +7,7 @@ from typing import Any
 
 from ..base import NodeExecutor
 from office_suite.pipeline.core.context import PipelineContext
-from office_suite.ir.cascade import cascade_style_by_name, DEFAULT_THEME_STYLES
+from office_suite.engine.style.cascade import cascade_style_by_name, DEFAULT_THEME_STYLES
 from office_suite.ir.types import IRDocument, IRStyle
 
 

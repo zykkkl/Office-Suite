@@ -1,0 +1,516 @@
+version: "4.0"
+type: presentation
+style_preset: creative
+title: "好好学习天天向上"
+
+styles:
+  cover_title:
+    font: { family: "Microsoft YaHei UI", size: 44, weight: 700, color: "#FFFFFF" }
+  cover_subtitle:
+    font: { family: "Microsoft YaHei UI", size: 18, color: "#FDE68A" }
+  section_title:
+    font: { family: "Microsoft YaHei UI", size: 28, weight: 700, color: "#1E293B" }
+  card_title:
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#1E293B" }
+  card_body:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#475569" }
+  highlight:
+    font: { family: "Microsoft YaHei UI", size: 14, weight: 600, color: "#E11D48" }
+  stat_big:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#E11D48" }
+  stat_label:
+    font: { family: "Microsoft YaHei UI", size: 11, color: "#64748B" }
+  tip_title:
+    font: { family: "Microsoft YaHei UI", size: 14, weight: 700, color: "#E11D48" }
+  tip_text:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#334155" }
+  quote_text:
+    font: { family: "Microsoft YaHei UI", size: 24, weight: 400, italic: true, color: "#1E293B" }
+  source_text:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#94A3B8" }
+
+slides:
+  # ===== 封面 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { color: "#0F172A" }
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 50% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#E11D48", "#F43F5E"] } }
+        - type: shape
+          shape: circle
+          position: { x: 170mm, y: -50mm, width: 200mm, height: 200mm }
+          style:
+            fill: { color: "#FFFFFF", opacity: 0.05 }
+        - type: shape
+          shape: circle
+          position: { x: -40mm, y: 80mm, width: 120mm, height: 120mm }
+          style:
+            fill: { color: "#FFFFFF", opacity: 0.04 }
+    elements:
+      - type: text
+        content: "好好学习"
+        position: { x: 35mm, y: 25mm, width: 184mm, height: 25mm }
+        style: cover_title
+        animation:
+          type: entry
+          effect: fade_in
+          trigger: on_click
+          duration: 0.6
+          easing: ease_out
+      - type: text
+        content: "天天向上"
+        position: { x: 35mm, y: 50mm, width: 184mm, height: 25mm }
+        style: cover_title
+        animation:
+          type: entry
+          effect: slide_up
+          trigger: after_previous
+          delay: 0.3
+          duration: 0.5
+          easing: ease_out
+      - type: shape
+        shape: rect
+        position: { x: 35mm, y: 78mm, width: 35mm, height: 1.5mm }
+        style:
+          fill: { color: "#FDE68A" }
+      - type: text
+        content: "每天进步一点点，未来无限可能"
+        position: { x: 35mm, y: 85mm, width: 184mm, height: 10mm }
+        style: cover_subtitle
+      - type: text
+        content: "学习方法  |  时间管理  |  目标规划"
+        position: { x: 35mm, y: 100mm, width: 184mm, height: 10mm }
+        style: cover_subtitle
+        extra: { align: left }
+
+  # ===== 为什么要学习 =====
+  - layout: blank
+    background: { color: "#FFFBEB" }
+    elements:
+      - type: text
+        content: "为什么要好好学习？"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#E11D48" }
+
+      # 引用
+      - type: text
+        content: '“知识改变命运，学习成就未来”'
+        position: { x: 40mm, y: 30mm, width: 174mm, height: 16mm }
+        style: quote_text
+        extra: { align: center }
+      - type: shape
+        shape: rect
+        position: { x: 115mm, y: 48mm, width: 24mm, height: 1mm }
+        style:
+          fill: { color: "#E11D48" }
+
+      # 三个数据卡片
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 55mm, width: 62mm, height: 38mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FECDD3", width: 1 }
+      - type: text
+        content: "95%"
+        position: { x: 25mm, y: 57mm, width: 62mm, height: 16mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "高薪职位要求本科以上"
+        position: { x: 25mm, y: 73mm, width: 62mm, height: 14mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 96mm, y: 55mm, width: 62mm, height: 38mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FECDD3", width: 1 }
+      - type: text
+        content: "3x"
+        position: { x: 96mm, y: 57mm, width: 62mm, height: 16mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "学历带来的收入差距"
+        position: { x: 96mm, y: 73mm, width: 62mm, height: 14mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 167mm, y: 55mm, width: 62mm, height: 38mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FECDD3", width: 1 }
+      - type: text
+        content: "10x"
+        position: { x: 167mm, y: 57mm, width: 62mm, height: 16mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "知识复利的长期回报"
+        position: { x: 167mm, y: 73mm, width: 62mm, height: 14mm }
+        style: stat_label
+        extra: { align: center }
+
+      # 底部总结
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 100mm, width: 204mm, height: 32mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 4, offset: [0, 1], color: "#00000008" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "学习不是为了考试，而是为了拥有更多选择的权利。"
+        position: { x: 30mm, y: 103mm, width: 194mm, height: 10mm }
+        style: card_title
+        extra: { align: center }
+      - type: text
+        content: "每一次的努力，都在为未来的自己铺路。知识是唯一不会被夺走的财富。"
+        position: { x: 30mm, y: 114mm, width: 194mm, height: 14mm }
+        style: card_body
+        extra: { align: center }
+
+  # ===== 高效学习方法 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "高效学习方法"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#E11D48" }
+
+      # 方法 1
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 30mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FECDD3", width: 1 }
+      - type: text
+        content: "01"
+        position: { x: 30mm, y: 33mm, width: 12mm, height: 8mm }
+        style:
+          font: { size: 16, weight: 600, color: "#E11D48" }
+      - type: text
+        content: "费曼学习法"
+        position: { x: 44mm, y: 33mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "用最简单的语言把知识讲给别人听。如果你不能简单地解释，说明你还没有真正理解。"
+        position: { x: 30mm, y: 44mm, width: 88mm, height: 28mm }
+        style: card_body
+
+      # 方法 2
+      - type: shape
+        shape: round_rect
+        position: { x: 131mm, y: 30mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "02"
+        position: { x: 136mm, y: 33mm, width: 12mm, height: 8mm }
+        style:
+          font: { size: 16, weight: 600, color: "#2563EB" }
+      - type: text
+        content: "番茄工作法"
+        position: { x: 150mm, y: 33mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "25 分钟专注学习 + 5 分钟休息。每 4 个番茄钟后长休息 15-30 分钟，保持高效专注。"
+        position: { x: 136mm, y: 44mm, width: 88mm, height: 28mm }
+        style: card_body
+
+      # 方法 3
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 82mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#BBF7D0", width: 1 }
+      - type: text
+        content: "03"
+        position: { x: 30mm, y: 85mm, width: 12mm, height: 8mm }
+        style:
+          font: { size: 16, weight: 600, color: "#16A34A" }
+      - type: text
+        content: "思维导图法"
+        position: { x: 44mm, y: 85mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "用图形化方式梳理知识结构，将零散知识点串联成网络，加深理解和记忆。"
+        position: { x: 30mm, y: 96mm, width: 88mm, height: 28mm }
+        style: card_body
+
+      # 方法 4
+      - type: shape
+        shape: round_rect
+        position: { x: 131mm, y: 82mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FED7AA", width: 1 }
+      - type: text
+        content: "04"
+        position: { x: 136mm, y: 85mm, width: 12mm, height: 8mm }
+        style:
+          font: { size: 16, weight: 600, color: "#EA580C" }
+      - type: text
+        content: "间隔重复法"
+        position: { x: 150mm, y: 85mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "按照遗忘曲线安排复习：1天后、3天后、7天后、30天后，将短期记忆转化为长期记忆。"
+        position: { x: 136mm, y: 96mm, width: 88mm, height: 28mm }
+        style: card_body
+
+  # ===== 时间管理 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "每日学习时间表"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#E11D48" }
+
+      # 时间轴
+      - type: shape
+        shape: rect
+        position: { x: 50mm, y: 38mm, width: 160mm, height: 1.5mm }
+        style:
+          fill: { color: "#FECDD3" }
+
+      # 早晨
+      - type: shape
+        shape: round_rect
+        position: { x: 50mm, y: 31mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#E11D48" }
+          glow: { radius: 4, color: "#E11D48", opacity: 0.3 }
+      - type: text
+        content: "06:30"
+        position: { x: 35mm, y: 44mm, width: 40mm, height: 7mm }
+        style:
+          font: { size: 14, weight: 700, color: "#E11D48" }
+      - type: text
+        content: "早起晨读\n背诵单词\n朗读课文"
+        position: { x: 35mm, y: 52mm, width: 40mm, height: 24mm }
+        style: tip_text
+
+      # 上午
+      - type: shape
+        shape: round_rect
+        position: { x: 95mm, y: 31mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#E11D48" }
+      - type: text
+        content: "08:00"
+        position: { x: 80mm, y: 44mm, width: 40mm, height: 7mm }
+        style:
+          font: { size: 14, weight: 700, color: "#E11D48" }
+      - type: text
+        content: "课堂学习\n认真听讲\n做好笔记"
+        position: { x: 80mm, y: 52mm, width: 40mm, height: 24mm }
+        style: tip_text
+
+      # 下午
+      - type: shape
+        shape: round_rect
+        position: { x: 140mm, y: 31mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#E11D48" }
+      - type: text
+        content: "14:00"
+        position: { x: 125mm, y: 44mm, width: 40mm, height: 7mm }
+        style:
+          font: { size: 14, weight: 700, color: "#E11D48" }
+      - type: text
+        content: "作业练习\n巩固知识\n查漏补缺"
+        position: { x: 125mm, y: 52mm, width: 40mm, height: 24mm }
+        style: tip_text
+
+      # 晚上
+      - type: shape
+        shape: round_rect
+        position: { x: 185mm, y: 31mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#16A34A" }
+      - type: text
+        content: "19:00"
+        position: { x: 170mm, y: 44mm, width: 40mm, height: 7mm }
+        style:
+          font: { size: 14, weight: 700, color: "#16A34A" }
+      - type: text
+        content: "复习预习\n整理错题\n规划明天"
+        position: { x: 170mm, y: 52mm, width: 40mm, height: 24mm }
+        style: tip_text
+
+      # 底部提示卡
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 82mm, width: 204mm, height: 48mm }
+        style:
+          fill: { color: "#FFFBEB" }
+          border: { color: "#FDE68A", width: 1 }
+      - type: text
+        content: "时间管理小贴士"
+        position: { x: 30mm, y: 85mm, width: 194mm, height: 8mm }
+        style: tip_title
+      - type: text
+        content: "1. 每天固定时间段学习，形成生物钟习惯\n2. 先做最难的科目，精力最充沛时攻克难题\n3. 利用碎片时间（等车、排队）背单词或复习\n4. 睡前 10 分钟回顾当天所学，加深记忆"
+        position: { x: 30mm, y: 95mm, width: 194mm, height: 30mm }
+        style: tip_text
+
+  # ===== 目标规划 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "目标规划与坚持"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#E11D48" }
+
+      # SMART 目标卡片
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 30mm, width: 104mm, height: 100mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 8, offset: [0, 2], color: "#00000010" }
+          border: { color: "#FECDD3", width: 1 }
+          glow: { radius: 6, color: "#E11D48", opacity: 0.15 }
+      - type: text
+        content: "SMART 目标法"
+        position: { x: 30mm, y: 33mm, width: 94mm, height: 10mm }
+        style:
+          font: { size: 18, weight: 700, color: "#E11D48" }
+      - type: text
+        content: "S - Specific    具体明确\n\nM - Measurable  可衡量\n\nA - Achievable   可实现\n\nR - Relevant      相关性\n\nT - Time-bound  有时限"
+        position: { x: 30mm, y: 46mm, width: 94mm, height: 78mm }
+        style:
+          font: { size: 13, color: "#334155" }
+
+      # 右侧坚持指南
+      - type: shape
+        shape: round_rect
+        position: { x: 135mm, y: 30mm, width: 94mm, height: 46mm }
+        style:
+          fill: { color: "#FEF2F2" }
+          border: { color: "#FECACA", width: 1 }
+      - type: text
+        content: "坚持的秘诀"
+        position: { x: 140mm, y: 33mm, width: 84mm, height: 8mm }
+        style:
+          font: { size: 14, weight: 700, color: "#DC2626" }
+      - type: text
+        content: "把大目标拆成小任务，每完成一个就打勾。21天养成习惯，90天形成稳定行为。"
+        position: { x: 140mm, y: 43mm, width: 84mm, height: 28mm }
+        style: card_body
+
+      - type: shape
+        shape: round_rect
+        position: { x: 135mm, y: 80mm, width: 94mm, height: 50mm }
+        style:
+          fill: { color: "#F0FDF4" }
+          border: { color: "#BBF7D0", width: 1 }
+      - type: text
+        content: "奖励机制"
+        position: { x: 140mm, y: 83mm, width: 84mm, height: 8mm }
+        style:
+          font: { size: 14, weight: 700, color: "#16A34A" }
+      - type: text
+        content: "完成周目标奖励自己看一部电影\n完成月目标买一本喜欢的书\n考试进步给自己一份小礼物"
+        position: { x: 140mm, y: 93mm, width: 84mm, height: 32mm }
+        style: card_body
+
+  # ===== 结束页 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#0F172A", "#1E293B"] } }
+        - type: shape
+          shape: circle
+          position: { x: 160mm, y: -30mm, width: 180mm, height: 180mm }
+          style:
+            fill: { color: "#E11D48", opacity: 0.06 }
+        - type: shape
+          shape: circle
+          position: { x: -40mm, y: 80mm, width: 140mm, height: 140mm }
+          style:
+            fill: { color: "#F43F5E", opacity: 0.04 }
+    elements:
+      - type: text
+        content: "学无止境"
+        position: { x: 35mm, y: 25mm, width: 184mm, height: 22mm }
+        style: cover_title
+        animation:
+          type: entry
+          effect: fade_in
+          trigger: on_click
+          duration: 0.6
+      - type: text
+        content: "勇攀高峰"
+        position: { x: 35mm, y: 48mm, width: 184mm, height: 22mm }
+        style: cover_title
+        animation:
+          type: entry
+          effect: slide_up
+          trigger: after_previous
+          delay: 0.3
+          duration: 0.5
+      - type: shape
+        shape: rect
+        position: { x: 35mm, y: 76mm, width: 35mm, height: 1.5mm }
+        style:
+          fill: { color: "#FDE68A" }
+      - type: text
+        content: "今天的努力，是明天的底气"
+        position: { x: 35mm, y: 84mm, width: 184mm, height: 10mm }
+        style: cover_subtitle
+      - type: text
+        content: "坚持  |  专注  |  突破"
+        position: { x: 35mm, y: 100mm, width: 184mm, height: 10mm }
+        style: cover_subtitle

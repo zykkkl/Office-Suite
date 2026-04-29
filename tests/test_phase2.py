@@ -8,10 +8,13 @@
 """
 
 import sys
+import zipfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+from PIL import Image
 
 from office_suite.dsl.parser import parse_yaml_string
 from office_suite.ir.compiler import compile_document
@@ -525,6 +528,368 @@ slides:
     check("综合 PPTX > 20KB", output.stat().st_size > 20000, f"{output.stat().st_size} bytes")
 
 
+def test_pptx_visual_quality_enhancements(tmp_path):
+    """PPTX 视觉增强：透明度、发光、图片 cover 裁切、文本自动适配。"""
+    image_path = tmp_path / "wide.png"
+    Image.new("RGB", (800, 200), "#2563EB").save(image_path)
+
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{image_path.as_posix()}"
+        position: {{ x: 10mm, y: 10mm, width: 50mm, height: 50mm }}
+        fit: cover
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "这是一段较长的卡片文字，会触发自动缩小字号以避免溢出"
+        position: {{ x: 70mm, y: 10mm, width: 55mm, height: 16mm }}
+        style:
+          fill: {{ color: "#0F172A", opacity: 0.72 }}
+          font: {{ size: 20, color: "#FFFFFF", weight: 700 }}
+          text_effect:
+            glow: {{ color: "#0EA5E9", radius: 5, opacity: 0.4 }}
+      - type: chart
+        chart_type: column
+        position: {{ x: 10mm, y: 72mm, width: 120mm, height: 52mm }}
+        extra:
+          title: "Quality"
+          categories: ["A", "B"]
+          series:
+            - name: "S1"
+              values: [1, 2]
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    shape_node = ir.children[0].children[1]
+    renderer = PPTXRenderer()
+    fitted = renderer._fit_text_style_to_box(
+        shape_node.content or "", shape_node.position, shape_node.style, shape_node
+    )
+    assert fitted.font_size < 20
+
+    output = tmp_path / "visual_quality.pptx"
+    renderer.render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "<a:alpha val=\"72000\"" in slide_xml
+    assert "<a:glow" in slide_xml
+    assert "crop" in slide_xml or "srcRect" in slide_xml
+
+
+def test_background_board_layers(tmp_path):
+    """background_board: background -> illustration -> scrim -> ornament."""
+    bg_path = tmp_path / "background.png"
+    illustration_path = tmp_path / "illustration.png"
+    Image.new("RGB", (1200, 675), "#D9C6A3").save(bg_path)
+    Image.new("RGB", (500, 500), "#2E6A4F").save(illustration_path)
+
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    background_board:
+      safe_area: {{ x: 18mm, y: 20mm, width: 92mm, height: 100mm, purpose: text }}
+      background:
+        type: image
+        src: "{bg_path.as_posix()}"
+        fit: cover
+      illustration:
+        type: image
+        src: "{illustration_path.as_posix()}"
+        fit: contain
+        position: {{ x: 145mm, y: 28mm, width: 70mm, height: 70mm }}
+      scrim:
+        type: color
+        color: "#F6EFE2"
+        opacity: 0.62
+      ornament:
+        type: color
+        color: "#2E6A4F"
+        opacity: 0.18
+        position: {{ x: 0mm, y: 132mm, width: 254mm, height: 4mm }}
+    elements:
+      - type: text
+        content: "Layered background board"
+        position: {{ x: 20mm, y: 24mm, width: 110mm, height: 16mm }}
+        style: {{ font: {{ size: 24, weight: 700, color: "#1D1A16" }} }}
+"""
+    doc = parse_yaml_string(dsl)
+    assert doc.slides[0].background_board["safe_area"]["purpose"] == "text"
+
+    ir = compile_document(doc)
+    slide = ir.children[0]
+    board = slide.extra["background_board"]
+    assert board["safe_area"]["width"] == "92mm"
+    assert board["scrim"]["opacity"] == 0.62
+
+    output = tmp_path / "background_board.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        names = zf.namelist()
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    media_parts = [name for name in names if name.startswith("ppt/media/")]
+    assert len(media_parts) >= 2
+    assert "<a:alpha val=\"62000\"" in slide_xml
+
+
+def test_canvas_layers_ordering_and_legacy_elements(tmp_path):
+    """slide.layers controls canvas order; legacy elements default to content."""
+    bg_path = tmp_path / "layer-bg.png"
+    Image.new("RGB", (1200, 675), "#E7EEF5").save(bg_path)
+
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    layers:
+      overlay:
+        - type: text
+          content: "OVERLAY"
+          z_index: 1
+          position: {{ x: 205mm, y: 8mm, width: 35mm, height: 8mm }}
+          style: {{ font: {{ size: 10, color: "#0F172A", weight: 700 }} }}
+      background:
+        - type: image
+          src: "{bg_path.as_posix()}"
+          fit: cover
+          position: {{ x: 0mm, y: 0mm, width: 254mm, height: 142.875mm }}
+      scrim:
+        - type: shape
+          shape_type: rectangle
+          position: {{ x: 0mm, y: 0mm, width: 254mm, height: 142.875mm }}
+          style: {{ fill: {{ color: "#FFFFFF", opacity: 0.5 }} }}
+      content:
+        - type: text
+          content: "CONTENT HIGH"
+          z_index: 10
+          position: {{ x: 20mm, y: 34mm, width: 100mm, height: 12mm }}
+          style: {{ font: {{ size: 18, color: "#1D1A16" }} }}
+        - type: text
+          content: "CONTENT LOW"
+          z_index: 1
+          position: {{ x: 20mm, y: 20mm, width: 100mm, height: 12mm }}
+          style: {{ font: {{ size: 18, color: "#1D1A16" }} }}
+    elements:
+      - type: text
+        content: "LEGACY CONTENT"
+        position: {{ x: 20mm, y: 52mm, width: 110mm, height: 12mm }}
+        style: {{ font: {{ size: 18, color: "#1D1A16" }} }}
+"""
+    doc = parse_yaml_string(dsl)
+    assert set(doc.slides[0].layers.keys()) == {"overlay", "background", "scrim", "content"}
+
+    ir = compile_document(doc)
+    slide = ir.children[0]
+    ordered = [
+        child.content or child.source
+        for child in slide.children
+    ]
+    assert ordered == [
+        bg_path.as_posix(),
+        None,
+        "LEGACY CONTENT",
+        "CONTENT LOW",
+        "CONTENT HIGH",
+        "OVERLAY",
+    ]
+    assert slide.children[0].extra["layer"] == "background"
+    assert slide.children[2].extra["layer"] == "content"
+    assert slide.children[3].extra["layer"] == "content"
+    assert slide.children[-1].extra["layer"] == "overlay"
+    assert slide.extra["layers"] == ["overlay", "background", "scrim", "content"]
+
+    output = tmp_path / "canvas_layers.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "CONTENT LOW" in slide_xml
+    assert "LEGACY CONTENT" in slide_xml
+    assert "CONTENT HIGH" in slide_xml
+    assert "OVERLAY" in slide_xml
+
+
+def _make_test_image(tmp_path, name="test.png"):
+    """创建临时测试图片"""
+    img_path = tmp_path / name
+    img = Image.new("RGB", (200, 150), color=(100, 150, 200))
+    img.save(img_path)
+    return img_path
+
+
+def _render_filter_dsl(tmp_path, img_path, filter_yaml, output_name="output.pptx"):
+    """渲染带滤镜的 DSL"""
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+        extra:
+          filter:
+{filter_yaml}
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / output_name
+    PPTXRenderer().render(ir, output)
+    return output
+
+
+def test_duotone_filter(tmp_path):
+    """图片 duotone 双色调滤镜"""
+    img_path = _make_test_image(tmp_path)
+    output = _render_filter_dsl(tmp_path, img_path, """            type: duotone
+            highlight: "#FFFFFF"
+            shadow: "#1E293B" """)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" in slide_xml
+    assert "FFFFFF" in slide_xml
+    assert "1E293B" in slide_xml
+
+
+def test_duotone_shorthand(tmp_path):
+    """duotone 简写：省略 type 字段"""
+    img_path = _make_test_image(tmp_path, "shorthand.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            highlight: "#F0F0F0"
+            shadow: "#333333" """, "shorthand.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" in slide_xml
+
+
+def test_grayscale_filter(tmp_path):
+    """灰度滤镜"""
+    img_path = _make_test_image(tmp_path, "gray.png")
+    output = _render_filter_dsl(tmp_path, img_path, "            type: grayscale", "grayscale.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "grayscl" in slide_xml
+
+
+def test_bilevel_filter(tmp_path):
+    """双色阶黑白滤镜"""
+    img_path = _make_test_image(tmp_path, "bilevel.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: biLevel
+            threshold: 40""", "bilevel.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "biLevel" in slide_xml
+
+
+def test_blur_filter(tmp_path):
+    """模糊滤镜"""
+    img_path = _make_test_image(tmp_path, "blur.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: blur
+            radius: 10""", "blur.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "blur" in slide_xml
+
+
+def test_opacity_filter(tmp_path):
+    """透明度滤镜"""
+    img_path = _make_test_image(tmp_path, "opacity.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: opacity
+            value: 50""", "opacity.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "alphaModFix" in slide_xml
+
+
+def test_brightness_filter(tmp_path):
+    """亮度滤镜"""
+    img_path = _make_test_image(tmp_path, "bright.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: brightness
+            value: 30""", "brightness.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "lum" in slide_xml
+
+
+def test_multi_filter_stack(tmp_path):
+    """多滤镜叠加：灰度 + 透明度"""
+    img_path = _make_test_image(tmp_path, "multi.png")
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+        extra:
+          filter:
+            - type: grayscale
+            - type: opacity
+              value: 60
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "multi_filter.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "grayscl" in slide_xml
+    assert "alphaModFix" in slide_xml
+
+
+def test_no_filter(tmp_path):
+    """无滤镜时正常渲染"""
+    img_path = _make_test_image(tmp_path, "nofilter.png")
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "no_filter.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" not in slide_xml
+    assert "grayscl" not in slide_xml
+
+
 # ============================================================
 # 主函数
 # ============================================================
@@ -534,16 +899,29 @@ def main():
     print("  Office Suite 4.0 — Phase 2 测试套件")
     print("=" * 60)
 
-    test_master_layouts()
-    test_chart_rendering()
-    test_table_styling()
-    test_gradient_fill()
-    test_shadow_border()
-    test_shape_types()
-    test_position_extras()
-    test_group_nesting()
-    test_style_cascade_integration()
-    test_e2e_comprehensive()
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        from pathlib import Path
+        tmp_path = Path(tmp)
+        test_master_layouts()
+        test_chart_rendering()
+        test_table_styling()
+        test_gradient_fill()
+        test_shadow_border()
+        test_shape_types()
+        test_position_extras()
+        test_group_nesting()
+        test_style_cascade_integration()
+        test_e2e_comprehensive()
+        test_duotone_filter(tmp_path)
+        test_duotone_shorthand(tmp_path)
+        test_grayscale_filter(tmp_path)
+        test_bilevel_filter(tmp_path)
+        test_blur_filter(tmp_path)
+        test_opacity_filter(tmp_path)
+        test_brightness_filter(tmp_path)
+        test_multi_filter_stack(tmp_path)
+        test_no_filter(tmp_path)
 
     print(f"\n{'=' * 60}")
     print(f"  结果:  PASS={_pass_count}  FAIL={_fail_count}")

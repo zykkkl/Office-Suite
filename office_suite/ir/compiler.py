@@ -28,7 +28,8 @@ from ..dsl.schema import (
     Slide,
     StyleSpec,
 )
-from .cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.color import OKLCH, oklch_to_hex
 from .types import (
     IRAnimation,
     IRDocument,
@@ -73,14 +74,16 @@ def _parse_length(value: str | float | None, parent_size: float = 0) -> tuple[fl
         return 0.0, False, False
 
 
-def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition:
+def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition | None:
     """将 DSL PositionSpec 编译为 IRPosition（mm 单位）
 
     默认父容器尺寸：标准 16:9 幻灯片 = 254mm x 142.875mm (10" x 5.625")
     注意：190.5mm 是 4:3 幻灯片高度（7.5"），16:9 正确高度是 142.875mm（5.625"）
+
+    返回 None 表示元素未指定位置，由布局引擎（flex/grid/constraint）注入。
     """
     if pos is None:
-        return IRPosition()
+        return None
 
     x, _, _ = _parse_length(pos.x, parent_w)
     y, _, _ = _parse_length(pos.y, parent_h)
@@ -107,6 +110,29 @@ def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h
 # 样式编译
 # ============================================================
 
+import re
+
+_OKLCH_RE = re.compile(
+    r"oklch\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _resolve_color(value: str | None) -> str | None:
+    """解析颜色值，支持 HEX 和 oklch(l, c, h) 格式
+
+    oklch 格式示例: oklch(0.7, 0.15, 30)
+    l: 0-1 亮度, c: 0-0.4 饱和度, h: 0-360 色相
+    """
+    if not value:
+        return value
+    m = _OKLCH_RE.match(value.strip())
+    if m:
+        l, c, h = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        return oklch_to_hex(OKLCH(l=l, c=c, h=h))
+    return value
+
+
 def compile_style(style: StyleSpec | None) -> IRStyle | None:
     """将 DSL StyleSpec 编译为 IRStyle"""
     if style is None:
@@ -118,16 +144,16 @@ def compile_style(style: StyleSpec | None) -> IRStyle | None:
         ir.font_size = style.font.size
         ir.font_weight = style.font.weight
         ir.font_italic = style.font.italic
-        ir.font_color = style.font.color
+        ir.font_color = _resolve_color(style.font.color)
     if style.fill:
-        ir.fill_color = style.fill.color
+        ir.fill_color = _resolve_color(style.fill.color)
         ir.fill_gradient = _gradient_to_dict(style.fill.gradient) if style.fill.gradient else None
         ir.fill_opacity = style.fill.opacity
     if style.shadow:
         ir.shadow = {
             "blur": style.shadow.blur,
             "offset": style.shadow.offset,
-            "color": style.shadow.color,
+            "color": _resolve_color(style.shadow.color),
         }
     if style.border:
         ir.border = style.border
@@ -140,7 +166,7 @@ def _gradient_to_dict(grad) -> dict[str, Any]:
     return {
         "type": grad.type,
         "angle": grad.angle,
-        "stops": grad.stops,
+        "stops": [_resolve_color(s) for s in grad.stops],
     }
 
 
@@ -215,6 +241,70 @@ TYPE_MAP = {
     "code": NodeType.CODE,
 }
 
+LAYER_ORDER = {
+    "background": 0,
+    "illustration": 10,
+    "scrim": 20,
+    "content": 30,
+    "foreground": 40,
+    "overlay": 50,
+}
+
+
+def _with_layer_metadata(elem: Element, layer_name: str, order: int) -> Element:
+    extra = dict(elem.extra)
+    extra.setdefault("layer", layer_name)
+    extra.setdefault("_layer_order", order)
+    return Element(
+        type=elem.type,
+        content=elem.content,
+        source=elem.source,
+        style=elem.style,
+        position=elem.position,
+        data_ref=elem.data_ref,
+        chart_type=elem.chart_type,
+        query=elem.query,
+        prompt=elem.prompt,
+        size=elem.size,
+        opacity=elem.opacity,
+        filter=elem.filter,
+        animation=elem.animation,
+        children=elem.children,
+        extra=extra,
+    )
+
+
+def _ordered_slide_elements(slide: Slide) -> list[Element]:
+    """合并 slide.layers 和旧 elements，并按图层顺序稳定排序。"""
+    layered: list[tuple[int, float, int, Element]] = []
+    sequence = 0
+
+    for layer_name, elements in slide.layers.items():
+        layer_order = LAYER_ORDER.get(str(layer_name), 30)
+        for elem in elements:
+            z_index = float(elem.extra.get("z_index", 0))
+            layered.append((
+                layer_order,
+                z_index,
+                sequence,
+                _with_layer_metadata(elem, str(layer_name), layer_order),
+            ))
+            sequence += 1
+
+    for elem in slide.elements:
+        layer_name = str(elem.extra.get("layer", "content"))
+        layer_order = LAYER_ORDER.get(layer_name, 30)
+        z_index = float(elem.extra.get("z_index", 0))
+        layered.append((
+            layer_order,
+            z_index,
+            sequence,
+            _with_layer_metadata(elem, layer_name, layer_order),
+        ))
+        sequence += 1
+
+    return [item[3] for item in sorted(layered, key=lambda item: (item[0], item[1], item[2]))]
+
 
 def compile_element(
     elem: Element,
@@ -262,12 +352,16 @@ def compile_element(
     if elem.size:
         w_raw = elem.size.get("width")
         h_raw = elem.size.get("height")
-        if w_raw is not None:
-            w_mm, _, _ = _parse_length(w_raw, parent_w)
-            ir_pos.width_mm = w_mm
-        if h_raw is not None:
-            h_mm, _, _ = _parse_length(h_raw, parent_h)
-            ir_pos.height_mm = h_mm
+        if w_raw is not None or h_raw is not None:
+            # ir_pos 为 None 时创建默认值，避免 AttributeError
+            if ir_pos is None:
+                ir_pos = IRPosition()
+            if w_raw is not None:
+                w_mm, _, _ = _parse_length(w_raw, parent_w)
+                ir_pos.width_mm = w_mm
+            if h_raw is not None:
+                h_mm, _, _ = _parse_length(h_raw, parent_h)
+                ir_pos.height_mm = h_mm
 
     # 图片 source 处理
     source = elem.source
@@ -684,6 +778,7 @@ def compile_slide(
     """
     # 检测 slide 级别的 stack 布局
     slide_stack = slide.layout == "stack"
+    slide_elements = _ordered_slide_elements(slide)
     slide_extra = slide.background or {}
     if isinstance(slide_extra, dict):
         stack_spacing = float(slide_extra.get("spacing", 8))  # 默认 8mm 间距
@@ -699,25 +794,25 @@ def compile_slide(
     # 自动分页：stack 布局且没有绝对定位元素时
     if slide_stack:
         # 检查是否有绝对定位元素
-        has_absolute = any(e.position is not None for e in slide.elements)
+        has_absolute = any(e.position is not None for e in slide_elements)
 
         if not has_absolute:
             # 预估总高度
             total_height = padding_top
-            for elem in slide.elements:
+            for elem in slide_elements:
                 total_height += _estimate_element_height(elem, content_width) + stack_spacing
 
             # 如果超出页面高度，进行分页
             if total_height > 142.875:
                 element_pages = _split_elements_for_pagination(
-                    slide.elements, content_width, 142.875, stack_spacing, padding_top
+                    slide_elements, content_width, 142.875, stack_spacing, padding_top
                 )
             else:
-                element_pages = [slide.elements]
+                element_pages = [slide_elements]
         else:
-            element_pages = [slide.elements]
+            element_pages = [slide_elements]
     else:
-        element_pages = [slide.elements]
+        element_pages = [slide_elements]
 
     # 编译每一页
     slides = []
@@ -778,6 +873,10 @@ def compile_slide(
         extra = {}
         if slide.background:
             extra["background"] = slide.background
+        if slide.background_board:
+            extra["background_board"] = slide.background_board
+        if slide.layers:
+            extra["layers"] = list(slide.layers.keys())
         if slide.transition:
             extra["transition"] = slide.transition
 
@@ -800,10 +899,59 @@ def compile_slide(
 
 def compile_document(doc: Document) -> IRDocument:
     """将 DSL Document 编译为 IRDocument"""
-    # 编译全局样式 → IR 样式表
-    doc_ir_styles = {}
+    # 处理 style_preset — 从设计令牌生成默认样式
+    preset_name = doc.style_preset or ""
+    preset_styles = {}
+    if preset_name:
+        try:
+            from ..design.tokens import PALETTE, TYPOGRAPHY
+            pal = PALETTE.get(preset_name, {})
+            if pal:
+                # 从预设生成基础样式
+                preset_styles["title"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["cover_title"].size,
+                    font_weight=TYPOGRAPHY["cover_title"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["heading"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["heading"].size,
+                    font_weight=TYPOGRAPHY["heading"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["body"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["body"].size,
+                    font_weight=TYPOGRAPHY["body"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["caption"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["caption"].size,
+                    font_weight=TYPOGRAPHY["caption"].weight,
+                    font_color=pal.get("text_secondary", "#64748B"),
+                )
+                preset_styles["accent"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["body"].size,
+                    font_weight=600,
+                    font_color=pal.get("primary", "#2563EB"),
+                )
+        except ImportError:
+            pass  # design 模块不可用时跳过
+
+    # 编译全局样式 → IR 样式表（预设样式作为底层，用户样式覆盖）
+    doc_ir_styles = dict(preset_styles)  # 预设作为默认
     for name, style_spec in doc.styles.items():
-        doc_ir_styles[name] = compile_style(style_spec) or IRStyle()
+        compiled = compile_style(style_spec)
+        if compiled:
+            # 用户样式覆盖预设样式（只覆盖非 None 字段）
+            if name in doc_ir_styles:
+                base = doc_ir_styles[name]
+                doc_ir_styles[name] = _merge_styles(base, compiled)
+            else:
+                doc_ir_styles[name] = compiled
 
     # 编译幻灯片
     slides = []
@@ -816,8 +964,20 @@ def compile_document(doc: Document) -> IRDocument:
         doc_type=doc.type.value,
         theme=doc.theme,
         title=doc.title,
+        style_preset=preset_name,
         styles=doc_ir_styles,
         data={k: v for k, v in doc.data.items()},
         children=slides,
         raw_dsl=doc.raw,
     )
+
+
+def _merge_styles(base: IRStyle, override: IRStyle) -> IRStyle:
+    """合并两个 IRStyle，override 中非 None 字段覆盖 base"""
+    from dataclasses import fields, replace as dc_replace
+    merged = base
+    for f in fields(IRStyle):
+        val = getattr(override, f.name)
+        if val is not None:
+            merged = dc_replace(merged, **{f.name: val})
+    return merged
