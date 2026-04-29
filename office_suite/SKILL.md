@@ -214,10 +214,11 @@ After YAML generation:
 
 1. Parse `deck.yml`.
 2. Compile to IR.
-3. Run available validation/lint checks. Prefer the unified quality gate:
+3. Compare the generated pages against `outline.md` and `design.md`: page count, slide order, promised module/step/day counts, and any required visual treatments must match unless a documented revision explains the change.
+4. Run available validation/lint checks. Prefer the unified quality gate:
    `python -m office_suite.tools.check output/<deck-name>/deck.yml --render pptx --output-dir output/<deck-name>/check`
-4. Render PPTX.
-5. Fix parse errors, bounds issues, text overflow, occlusion, poor contrast, and obvious whitespace imbalance.
+5. Render PPTX.
+6. Fix parse errors, bounds issues, text overflow, occlusion, poor contrast, missing sequence items, outline/page mismatches, and obvious whitespace imbalance.
 
 Warnings about overflow, occlusion, underfilled text boxes, or out-of-bounds content should be treated as real visual defects unless the issue is intentional decoration. After each fix pass, re-run the relevant check or render step until there are no unexpected errors or warnings.
 

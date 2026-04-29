@@ -24,7 +24,6 @@
 import logging
 from pathlib import Path
 from typing import Any
-from dataclasses import replace as dc_replace
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +34,11 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.chart.data import CategoryChartData
-from PIL import Image
 
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
-from ..layout_resolver import LayoutResolver, detect_layout_mode
 from .animation import apply_animations
-from .shape import get_shape_type
 
 # mm → EMU
 MM_TO_EMU = 36000
@@ -90,7 +86,7 @@ class PPTXRenderer(BaseRenderer):
                 NodeType.SHAPE, NodeType.TABLE, NodeType.CHART,
                 NodeType.GROUP, NodeType.VIDEO,
             },
-            supported_layout_modes={"absolute", "relative", "grid", "flex", "constraint"},
+            supported_layout_modes={"absolute", "relative"},
             supported_text_transforms={"arch", "arch_up", "wave", "circle"},
             supported_animations={"slide_up", "fade_in", "scale_in", "fly_in"},
             supported_effects={"shadow", "glow", "gradient_fill", "opacity"},
@@ -151,27 +147,12 @@ class PPTXRenderer(BaseRenderer):
         slide = self._prs.slides.add_slide(slide_layout)
 
         # 设置背景
-        bg_board = slide_node.extra.get("background_board")
-        if bg_board:
-            self._render_background_board(slide, bg_board)
-
         bg_data = slide_node.extra.get("background")
-        if bg_data and not bg_board:
+        if bg_data:
             self._set_background(slide, bg_data)
 
-        # 布局解析：grid/flex/constraint 模式下预计算所有子元素位置
-        layout_mode = detect_layout_mode(slide_node)
-        resolved_positions: dict[str, IRPosition] = {}
-        if layout_mode != "absolute":
-            resolver = LayoutResolver(SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM)
-            resolved_positions = resolver.resolve_children(slide_node)
-
         # 渲染元素
-        for i, elem_node in enumerate(slide_node.children):
-            # 布局引擎计算的位置始终注入（覆盖旧位置）
-            if resolved_positions:
-                key = elem_node.id or str(i)
-                elem_node.position = resolved_positions.get(key, elem_node.position)
+        for elem_node in slide_node.children:
             self._render_element(slide, elem_node, doc)
 
     def _get_layout_index(self, name: str) -> int:
@@ -207,138 +188,6 @@ class PPTXRenderer(BaseRenderer):
         elif "color" in bg_data:
             fill.fore_color.rgb = self._hex_to_rgb(bg_data["color"])
 
-    def _render_background_board(self, slide, board: dict[str, Any]):
-        """Render the slide background board in fixed layer order.
-
-        Supports two formats:
-          1. Named keys: { background: [...], illustration: [...], ... }
-          2. Flat layers: { layers: [ {type: shape, ...}, ... ] }
-
-        safe_area/content_zone is metadata for layout decisions and is not rendered.
-        """
-        if not isinstance(board, dict):
-            return
-        # Flat layers format (DSL shorthand)
-        flat_layers = self._layer_items(board.get("layers"))
-        if flat_layers:
-            for layer in flat_layers:
-                self._render_background_layer(slide, layer, "background")
-            return
-        # Named key format
-        for layer_key in ("background", "illustration", "scrim", "ornament"):
-            for layer in self._layer_items(board.get(layer_key)):
-                self._render_background_layer(slide, layer, layer_key)
-
-    def _layer_items(self, value) -> list[dict[str, Any]]:
-        if not value:
-            return []
-        if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
-        if isinstance(value, dict):
-            return [value]
-        return []
-
-    def _render_background_layer(self, slide, layer: dict[str, Any], role: str):
-        layer_type = str(layer.get("type", "")).lower()
-        if not layer_type:
-            if layer.get("src") or layer.get("source"):
-                layer_type = "image"
-            elif layer.get("gradient"):
-                layer_type = "gradient"
-            else:
-                layer_type = "color"
-
-        left, top, width, height = self._layer_position_to_emu(layer.get("position"))
-
-        if layer_type in {"image", "texture"}:
-            src = layer.get("src", layer.get("source"))
-            if isinstance(src, str):
-                file_path = Path(src.replace("file://", ""))
-                if file_path.exists():
-                    self._add_picture_with_fit(
-                        slide, file_path, left, top, width, height,
-                        fit=layer.get("fit", "cover"),
-                    )
-            return
-
-        shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
-        shape.line.fill.background()
-
-        # Extract fill from style sub-dict if present (DSL format)
-        style = layer.get("style") or {}
-        fill = style.get("fill") if isinstance(style, dict) else {}
-
-        gradient = layer.get("gradient")
-        if not gradient and isinstance(fill, dict):
-            gradient = fill.get("gradient")
-
-        if layer_type in {"linear_gradient", "radial_gradient"}:
-            gradient = {
-                "type": "radial" if layer_type == "radial_gradient" else "linear",
-                "angle": layer.get("angle", 0),
-                "stops": self._normalize_gradient_stops(layer.get("stops", [])),
-            }
-
-        if gradient:
-            self._apply_gradient_fill(shape.fill, gradient)
-        else:
-            shape.fill.solid()
-            color = layer.get("color")
-            if not color and isinstance(fill, dict):
-                color = fill.get("color")
-            shape.fill.fore_color.rgb = self._hex_to_rgb(color or "#000000")
-
-        opacity = layer.get("opacity")
-        if opacity is None and isinstance(fill, dict):
-            opacity = fill.get("opacity")
-        if opacity is not None:
-            self._apply_fill_alpha(shape, float(opacity))
-
-    def _normalize_gradient_stops(self, stops) -> list[str]:
-        if not isinstance(stops, list) or not stops:
-            return ["#000000", "#FFFFFF"]
-        normalized = []
-        for stop in stops:
-            if isinstance(stop, str):
-                normalized.append(stop)
-            elif isinstance(stop, dict):
-                normalized.append(stop.get("color", "#000000"))
-        return normalized or ["#000000", "#FFFFFF"]
-
-    def _layer_position_to_emu(self, raw_position) -> tuple:
-        if not isinstance(raw_position, dict):
-            return Mm(0), Mm(0), Mm(SLIDE_WIDTH_MM), Mm(SLIDE_HEIGHT_MM)
-        pos = IRPosition(
-            x_mm=self._parse_layer_length(raw_position.get("x"), SLIDE_WIDTH_MM),
-            y_mm=self._parse_layer_length(raw_position.get("y"), SLIDE_HEIGHT_MM),
-            width_mm=self._parse_layer_length(
-                raw_position.get("width", raw_position.get("w", SLIDE_WIDTH_MM)),
-                SLIDE_WIDTH_MM,
-            ),
-            height_mm=self._parse_layer_length(
-                raw_position.get("height", raw_position.get("h", SLIDE_HEIGHT_MM)),
-                SLIDE_HEIGHT_MM,
-            ),
-        )
-        return self._pos_to_emu(pos)
-
-    def _parse_layer_length(self, value, parent_size: float) -> float:
-        if value is None:
-            return 0.0
-        if isinstance(value, (int, float)):
-            return float(value)
-        text = str(value).strip()
-        if text.endswith("mm"):
-            return float(text[:-2])
-        if text.endswith("%"):
-            return parent_size * float(text[:-1]) / 100.0
-        if text.endswith("in"):
-            return float(text[:-2]) * 25.4
-        try:
-            return float(text)
-        except ValueError:
-            return 0.0
-
     # ============================================================
     # 元素级渲染
     # ============================================================
@@ -356,20 +205,7 @@ class PPTXRenderer(BaseRenderer):
         elif node.node_type == NodeType.CHART:
             self._render_chart(slide, node, doc)
         elif node.node_type == NodeType.GROUP:
-            # GROUP 内的布局解析
-            from ..layout_resolver import detect_layout_mode, LayoutResolver
-            group_mode = detect_layout_mode(node)
-            group_positions: dict[str, IRPosition] = {}
-            if group_mode != "absolute":
-                g_pos = node.position or IRPosition()
-                gw = g_pos.width_mm if g_pos.width_mm > 0 else SLIDE_WIDTH_MM
-                gh = g_pos.height_mm if g_pos.height_mm > 0 else SLIDE_HEIGHT_MM
-                g_resolver = LayoutResolver(gw, gh)
-                group_positions = g_resolver.resolve_children(node)
-            for ci, child in enumerate(node.children):
-                if group_positions:
-                    ckey = child.id or str(ci)
-                    child.position = group_positions.get(ckey, child.position)
+            for child in node.children:
                 self._render_element(slide, child, doc)
         else:
             self._render_placeholder(slide, node)
@@ -378,8 +214,6 @@ class PPTXRenderer(BaseRenderer):
         """渲染文本元素"""
         pos = self._get_position(node)
         style = self._resolve_style(node, doc)
-        style = self._fit_text_style_to_box(node.content or "", pos, style, node)
-        pos = self._auto_size_text_position(node.content or "", pos, style)
 
         left, top, width, height = self._pos_to_emu(pos)
         if pos.is_center:
@@ -387,8 +221,7 @@ class PPTXRenderer(BaseRenderer):
 
         txBox = slide.shapes.add_textbox(left, top, width, height)
         tf = txBox.text_frame
-        tf.word_wrap = True
-        self._apply_text_frame_options(tf, node)
+        tf.word_wrap = not self._is_wrap_disabled(node)
 
         p = tf.paragraphs[0]
         p.text = node.content or ""
@@ -433,14 +266,12 @@ class PPTXRenderer(BaseRenderer):
         # 形状内文本
         if node.content:
             tf = shape.text_frame
-            tf.word_wrap = True
-            self._apply_text_frame_options(tf, node)
+            tf.word_wrap = not self._is_wrap_disabled(node)
             p = tf.paragraphs[0]
             p.text = node.content
             self._apply_text_layout(tf, p, node)
             if style:
-                fitted = self._fit_text_style_to_box(node.content, pos, style, node)
-                self._apply_text_style(p, fitted)
+                self._apply_text_style(p, style)
 
         # 应用动画
         if node.animations:
@@ -452,7 +283,6 @@ class PPTXRenderer(BaseRenderer):
         支持：
           - 本地文件: source="file://path" 或 source="path"
           - MCP/AI 资源: source={mcp__unsplash, query: "..."} → 占位符
-          - duotone 滤镜: extra.filter = { type: duotone, highlight, shadow }
         """
         pos = self._get_position(node)
         left, top, width, height = self._pos_to_emu(pos)
@@ -462,14 +292,7 @@ class PPTXRenderer(BaseRenderer):
             # 尝试作为本地文件
             file_path = Path(source.replace("file://", ""))
             if file_path.exists():
-                picture = self._add_picture_with_fit(
-                    slide, file_path, left, top, width, height,
-                    fit=node.extra.get("fit", "cover"),
-                )
-                # 应用图片滤镜（支持单个或多个叠加）
-                filter_spec = node.extra.get("filter")
-                if filter_spec and picture:
-                    self._apply_image_filter(picture, filter_spec)
+                slide.shapes.add_picture(str(file_path), left, top, width, height)
                 return
 
         # 降级：占位符
@@ -571,7 +394,6 @@ class PPTXRenderer(BaseRenderer):
 
         # 应用主题色到系列
         self._apply_chart_colors(chart, node)
-        self._apply_chart_style(chart, node)
 
     def _build_chart_data(self, node: IRNode, doc: IRDocument | None = None) -> CategoryChartData:
         """从 IRNode 构建 CategoryChartData
@@ -621,36 +443,6 @@ class PPTXRenderer(BaseRenderer):
             series.format.fill.solid()
             series.format.fill.fore_color.rgb = self._hex_to_rgb(color_hex)
 
-    def _apply_chart_style(self, chart, node: IRNode):
-        """应用更适合汇报页的图表默认样式。"""
-        title_size = node.extra.get("title_size", 14)
-        label_size = node.extra.get("label_size", 9)
-
-        if chart.has_title:
-            p = chart.chart_title.text_frame.paragraphs[0]
-            p.font.size = Pt(title_size)
-            p.font.bold = True
-            p.font.color.rgb = self._hex_to_rgb(node.extra.get("title_color", "#0F172A"))
-
-        if chart.has_legend:
-            chart.legend.font.size = Pt(label_size)
-            chart.legend.font.color.rgb = self._hex_to_rgb(node.extra.get("label_color", "#475569"))
-
-        # Category/value axes are unavailable on pie/doughnut charts.
-        for axis_name in ("category_axis", "value_axis"):
-            try:
-                axis = getattr(chart, axis_name)
-            except ValueError:
-                axis = None
-            if axis is None:
-                continue
-            axis.tick_labels.font.size = Pt(label_size)
-            axis.tick_labels.font.color.rgb = self._hex_to_rgb(node.extra.get("label_color", "#475569"))
-            axis.has_major_gridlines = axis_name == "value_axis"
-            if axis_name == "value_axis" and axis.has_major_gridlines:
-                axis.major_gridlines.format.line.color.rgb = self._hex_to_rgb("#E2E8F0")
-                axis.major_gridlines.format.line.width = Pt(0.5)
-
     def _render_placeholder(self, slide, node: IRNode, left=None, top=None, width=None, height=None):
         """渲染占位符（不支持的元素类型或缺失资源）"""
         if left is None:
@@ -673,208 +465,6 @@ class PPTXRenderer(BaseRenderer):
         p.font.size = Pt(10)
         p.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
-    def _add_picture_with_fit(self, slide, file_path: Path, left, top, width, height, fit: str = "cover"):
-        """添加图片并按比例适配目标框。
-
-        fit:
-          - cover: 填满目标框，超出部分用 PPT 裁切参数隐藏
-          - contain: 保持完整图片，居中留白
-          - stretch: 直接拉伸到目标框
-        """
-        fit = (fit or "cover").lower()
-        if fit == "stretch":
-            return slide.shapes.add_picture(str(file_path), left, top, width, height)
-
-        try:
-            with Image.open(file_path) as img:
-                img_w, img_h = img.size
-        except Exception:
-            return slide.shapes.add_picture(str(file_path), left, top, width, height)
-
-        if img_w <= 0 or img_h <= 0:
-            return slide.shapes.add_picture(str(file_path), left, top, width, height)
-
-        box_w = int(width)
-        box_h = int(height)
-        image_ratio = img_w / img_h
-        box_ratio = box_w / box_h if box_h else image_ratio
-
-        if fit == "contain":
-            if image_ratio >= box_ratio:
-                new_w = box_w
-                new_h = int(box_w / image_ratio)
-            else:
-                new_h = box_h
-                new_w = int(box_h * image_ratio)
-            pic_left = left + int((box_w - new_w) / 2)
-            pic_top = top + int((box_h - new_h) / 2)
-            return slide.shapes.add_picture(str(file_path), pic_left, pic_top, new_w, new_h)
-
-        picture = slide.shapes.add_picture(str(file_path), left, top, width, height)
-        if image_ratio > box_ratio:
-            visible_ratio = box_ratio / image_ratio
-            crop = max(0.0, min(0.5, (1.0 - visible_ratio) / 2))
-            picture.crop_left = crop
-            picture.crop_right = crop
-        elif image_ratio < box_ratio:
-            visible_ratio = image_ratio / box_ratio
-            crop = max(0.0, min(0.5, (1.0 - visible_ratio) / 2))
-            picture.crop_top = crop
-            picture.crop_bottom = crop
-        return picture
-
-    def _apply_image_filter(self, picture, filter_spec: dict[str, Any]):
-        """应用图片滤镜
-
-        支持的滤镜类型（PPTX 原生）：
-          - duotone: 双色调 { highlight: "#FFF", shadow: "#000" }
-          - grayscale: 灰度（无参数）
-          - biLevel: 双色阶黑白 { threshold: 0-100 }
-          - blur: 模糊 { radius: 1-100, grow: true/false }
-          - opacity: 透明度 { value: 0-100 }
-          - brightness: 亮度 { value: -100 to 100 }
-          - contrast: 对比度 { value: -100 to 100 }
-
-        也支持简写形式：
-          filter: { highlight: "#FFF", shadow: "#000" }  # 默认 duotone
-          filter: { type: grayscale }
-          filter: [{ type: grayscale }, { type: blur, radius: 5 }]  # 多效果叠加
-        """
-        from lxml import etree
-
-        # 支持单个滤镜或滤镜列表
-        if isinstance(filter_spec, list):
-            for f in filter_spec:
-                self._apply_single_filter(picture, f)
-        else:
-            self._apply_single_filter(picture, filter_spec)
-
-    def _apply_single_filter(self, picture, filter_spec: dict[str, Any]):
-        """应用单个图片滤镜"""
-        from lxml import etree
-
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        # 获取 blip 元素
-        blip = picture._element.find(f'.//{{{a_ns}}}blip')
-        if blip is None:
-            return
-
-        # 推断类型：有 highlight/shadow → duotone，否则从 type 字段读
-        filter_type = filter_spec.get("type")
-        if filter_type is None and ("highlight" in filter_spec or "shadow" in filter_spec):
-            filter_type = "duotone"
-        filter_type = filter_type or "duotone"
-
-        # 类型分派
-        if filter_type == "duotone":
-            self._apply_duotone(blip, filter_spec)
-        elif filter_type == "grayscale":
-            self._apply_grayscale(blip)
-        elif filter_type == "biLevel":
-            self._apply_bilevel(blip, filter_spec)
-        elif filter_type == "blur":
-            self._apply_blur(picture, filter_spec)
-        elif filter_type == "opacity":
-            self._apply_image_opacity(blip, filter_spec)
-        elif filter_type in ("brightness", "contrast"):
-            self._apply_luminance(blip, filter_spec)
-
-    def _apply_duotone(self, blip, spec: dict[str, Any]):
-        """双色调"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        for old in blip.findall(f'{{{a_ns}}}duotone'):
-            blip.remove(old)
-
-        duotone = etree.SubElement(blip, f'{{{a_ns}}}duotone')
-        srgb1 = etree.SubElement(duotone, f'{{{a_ns}}}srgbClr')
-        srgb1.set('val', spec.get("highlight", "#FFFFFF").lstrip('#'))
-        srgb2 = etree.SubElement(duotone, f'{{{a_ns}}}srgbClr')
-        srgb2.set('val', spec.get("shadow", "#000000").lstrip('#'))
-
-    def _apply_grayscale(self, blip):
-        """灰度"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        for old in blip.findall(f'{{{a_ns}}}grayscl'):
-            blip.remove(old)
-        etree.SubElement(blip, f'{{{a_ns}}}grayscl')
-
-    def _apply_bilevel(self, blip, spec: dict[str, Any]):
-        """双色阶（黑白）"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        for old in blip.findall(f'{{{a_ns}}}biLevel'):
-            blip.remove(old)
-        bi = etree.SubElement(blip, f'{{{a_ns}}}biLevel')
-        # threshold: 0-100 → PPTX 0-100000
-        threshold = int(spec.get("threshold", 50) * 1000)
-        bi.set('thresh', str(threshold))
-
-    def _apply_blur(self, picture, spec: dict[str, Any]):
-        """模糊（注入到 effectLst）"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        sp_pr = getattr(picture._element, 'spPr', None)
-        if sp_pr is None:
-            return
-        effect_lst = sp_pr.find(f'{{{a_ns}}}effectLst')
-        if effect_lst is None:
-            effect_lst = etree.SubElement(sp_pr, f'{{{a_ns}}}effectLst')
-
-        for old in effect_lst.findall(f'{{{a_ns}}}blur'):
-            effect_lst.remove(old)
-        blur = etree.SubElement(effect_lst, f'{{{a_ns}}}blur')
-        # radius: 1-100 → PPTX EMU (1pt = 12700)
-        radius = int(spec.get("radius", 5) * 12700)
-        blur.set('rad', str(radius))
-        blur.set('grow', '1' if spec.get("grow", True) else '0')
-
-    def _apply_image_opacity(self, blip, spec: dict[str, Any]):
-        """透明度"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        for old in blip.findall(f'{{{a_ns}}}alphaModFix'):
-            blip.remove(old)
-        alpha = etree.SubElement(blip, f'{{{a_ns}}}alphaModFix')
-        # value: 0-100 → PPTX 0-100000
-        amount = int(spec.get("value", 100) * 1000)
-        alpha.set('amt', str(amount))
-
-    def _apply_luminance(self, blip, spec: dict[str, Any]):
-        """亮度/对比度 — 通过 <a:effectLst>/<a:lum> 实现"""
-        from lxml import etree
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-
-        filter_type = spec.get("type", "brightness")
-        value = spec.get("value", 0)
-
-        # lum 需要嵌套在 blipFill 的 effectLst 中
-        blip_fill = blip.getparent()
-        if blip_fill is None:
-            return
-
-        effect_lst = blip_fill.find(f'{{{a_ns}}}effectLst')
-        if effect_lst is None:
-            effect_lst = etree.SubElement(blip_fill, f'{{{a_ns}}}effectLst')
-
-        # 清理旧 lum 元素
-        for old in effect_lst.findall(f'{{{a_ns}}}lum'):
-            effect_lst.remove(old)
-
-        lum = etree.SubElement(effect_lst, f'{{{a_ns}}}lum')
-        # value: -100 to 100 → PPTX -100000 to 100000
-        if filter_type == "brightness":
-            lum.set('bright', str(int(value * 1000)))
-        elif filter_type == "contrast":
-            lum.set('contrast', str(int(value * 1000)))
-
     # ============================================================
     # 填充/边框/样式辅助方法
     # ============================================================
@@ -889,15 +479,13 @@ class PPTXRenderer(BaseRenderer):
             shape.fill.fore_color.rgb = self._hex_to_rgb(style.fill_color)
             # 透明度
             if style.fill_opacity is not None and style.fill_opacity < 1.0:
-                self._apply_fill_alpha(shape, style.fill_opacity)
+                shape.fill.fore_color.brightness = 0
         else:
             shape.fill.background()
 
         # 阴影
         if style and style.shadow:
             self._apply_shadow(shape, style.shadow)
-        if style and style.text_effect and style.text_effect.get("glow"):
-            self._apply_glow(shape, style.text_effect["glow"])
 
     def _apply_gradient_fill(self, fill, gradient: dict[str, Any]):
         """应用渐变填充
@@ -970,9 +558,8 @@ class PPTXRenderer(BaseRenderer):
         color_hex = shadow.get("color", "#000000").lstrip("#")
         opacity = shadow.get("opacity", 0.5)
         blur_pt = shadow.get("blur", 4)
-        offset = shadow.get("offset")
-        offset_x = shadow.get("offset_x", offset[0] if isinstance(offset, list) and offset else 3)
-        offset_y = shadow.get("offset_y", offset[1] if isinstance(offset, list) and len(offset) > 1 else 3)
+        offset_x = shadow.get("offset_x", 3)
+        offset_y = shadow.get("offset_y", 3)
         angle_deg = shadow.get("angle", 45)
 
         # EMU 换算：1pt = 12700 EMU
@@ -994,49 +581,6 @@ class PPTXRenderer(BaseRenderer):
         srgb_clr.set('val', color_hex if len(color_hex) == 6 else '000000')
         alpha = etree.SubElement(srgb_clr, f'{{{a_ns}}}alpha')
         alpha.set('val', str(alpha_pct))
-
-    def _apply_fill_alpha(self, shape, opacity: float):
-        """向 solidFill 注入透明度。opacity=1 不透明，0 全透明。"""
-        from lxml import etree
-
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-        sp_pr = getattr(shape._element, 'spPr', None)
-        if sp_pr is None:
-            return
-        solid_fill = sp_pr.find(f'{{{a_ns}}}solidFill')
-        if solid_fill is None:
-            return
-        color = solid_fill.find(f'{{{a_ns}}}srgbClr')
-        if color is None:
-            color = solid_fill.find(f'{{{a_ns}}}schemeClr')
-        if color is None:
-            return
-        for old in color.findall(f'{{{a_ns}}}alpha'):
-            color.remove(old)
-        alpha = etree.SubElement(color, f'{{{a_ns}}}alpha')
-        alpha.set('val', str(int(max(0.0, min(1.0, opacity)) * 100000)))
-
-    def _apply_glow(self, shape, glow: dict[str, Any]):
-        """通过 DrawingML 注入发光效果。"""
-        from lxml import etree
-
-        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-        sp_pr = getattr(shape._element, 'spPr', None)
-        if sp_pr is None:
-            return
-        effect_lst = sp_pr.find(f'{{{a_ns}}}effectLst')
-        if effect_lst is None:
-            effect_lst = etree.SubElement(sp_pr, f'{{{a_ns}}}effectLst')
-        for old in effect_lst.findall(f'{{{a_ns}}}glow'):
-            effect_lst.remove(old)
-
-        glow_elem = etree.SubElement(effect_lst, f'{{{a_ns}}}glow')
-        glow_elem.set('rad', str(int(float(glow.get("radius", 6)) * 12700)))
-        color_hex = str(glow.get("color", "#2563EB")).lstrip("#")
-        srgb = etree.SubElement(glow_elem, f'{{{a_ns}}}srgbClr')
-        srgb.set('val', color_hex[:6] if len(color_hex) >= 6 else "2563EB")
-        alpha = etree.SubElement(srgb, f'{{{a_ns}}}alpha')
-        alpha.set('val', str(int(float(glow.get("opacity", 0.35)) * 100000)))
 
     def _apply_shape_border(self, shape, node: IRNode):
         """应用形状边框"""
@@ -1060,10 +604,6 @@ class PPTXRenderer(BaseRenderer):
         for r in range(rows):
             for c in range(cols):
                 cell = table.cell(r, c)
-                cell.margin_left = Mm(2)
-                cell.margin_right = Mm(2)
-                cell.margin_top = Mm(1)
-                cell.margin_bottom = Mm(1)
                 if r == 0:
                     # 表头：深色背景
                     cell.fill.solid()
@@ -1072,7 +612,6 @@ class PPTXRenderer(BaseRenderer):
                         for run in p.runs:
                             run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
                             run.font.size = Pt(11)
-                            run.font.bold = True
                 elif r % 2 == 0:
                     # 偶数行：浅灰背景
                     cell.fill.solid()
@@ -1081,85 +620,10 @@ class PPTXRenderer(BaseRenderer):
                     # 奇数行：白色
                     cell.fill.solid()
                     cell.fill.fore_color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-                for p in cell.text_frame.paragraphs:
-                    p.alignment = PP_ALIGN.CENTER if r == 0 else PP_ALIGN.LEFT
-                    for run in p.runs:
-                        if r != 0:
-                            run.font.size = Pt(10)
-                            run.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
 
     # ============================================================
     # 位置/样式工具方法
     # ============================================================
-
-    def _apply_text_frame_options(self, text_frame, node: IRNode):
-        """设置文本框默认内边距和垂直对齐，减少贴边感。"""
-        margins = node.extra.get("margins", {})
-        margin_x = float(margins.get("x", node.extra.get("margin_x", 2.5)))
-        margin_y = float(margins.get("y", node.extra.get("margin_y", 1.5)))
-        text_frame.margin_left = Mm(margin_x)
-        text_frame.margin_right = Mm(margin_x)
-        text_frame.margin_top = Mm(margin_y)
-        text_frame.margin_bottom = Mm(margin_y)
-        vertical = node.extra.get("vertical_align", "middle")
-        text_frame.vertical_anchor = {
-            "top": MSO_ANCHOR.TOP,
-            "middle": MSO_ANCHOR.MIDDLE,
-            "center": MSO_ANCHOR.MIDDLE,
-            "bottom": MSO_ANCHOR.BOTTOM,
-        }.get(vertical, MSO_ANCHOR.MIDDLE)
-
-    def _get_paragraph_alignment(self, align: str):
-        """DSL 对齐值到 PowerPoint 段落对齐。"""
-        return {
-            "left": PP_ALIGN.LEFT,
-            "center": PP_ALIGN.CENTER,
-            "right": PP_ALIGN.RIGHT,
-            "justify": PP_ALIGN.JUSTIFY,
-        }.get(str(align).lower(), PP_ALIGN.LEFT)
-
-    def _auto_size_text_position(self, text: str, pos: IRPosition, style: IRStyle | None) -> IRPosition:
-        """当高度为 auto/0 时，根据字号和宽度估算文本框高度。"""
-        if not pos.is_auto and pos.height_mm > 0:
-            return pos
-        font_size = self._style_val(style or IRStyle(), "font_size") or 18
-        width_mm = pos.width_mm if pos.width_mm > 0 else SLIDE_WIDTH_MM - pos.x_mm
-        chars_per_line = max(1, int(width_mm / max(1.0, font_size * 0.18)))
-        explicit_lines = str(text).splitlines() or [""]
-        line_count = sum(max(1, (len(line) + chars_per_line - 1) // chars_per_line) for line in explicit_lines)
-        height_mm = max(7.5, line_count * font_size * 0.48 + 3)
-        return dc_replace(pos, height_mm=height_mm, width_mm=width_mm)
-
-    def _fit_text_style_to_box(
-        self,
-        text: str,
-        pos: IRPosition,
-        style: IRStyle | None,
-        node: IRNode,
-    ) -> IRStyle | None:
-        """在文本明显放不下时缩小字号，避免输出 PPT 内文字溢出。"""
-        if style is None:
-            style = IRStyle()
-        if node.extra.get("auto_fit", True) is False:
-            return style
-
-        font_size = self._style_val(style, "font_size") or 18
-        if pos.width_mm <= 0 or pos.height_mm <= 0 or not text:
-            return style
-
-        min_size = int(node.extra.get("min_font_size", 8))
-        chars_per_line = max(1, int(pos.width_mm / max(1.0, font_size * 0.18)))
-        lines = str(text).splitlines() or [""]
-        estimated_lines = sum(max(1, (len(line) + chars_per_line - 1) // chars_per_line) for line in lines)
-        needed_height = estimated_lines * font_size * 0.48 + 3
-        if needed_height <= pos.height_mm:
-            return style
-
-        scale = max(min_size / font_size, pos.height_mm / needed_height)
-        fitted_size = max(min_size, int(font_size * min(1.0, scale)))
-        if fitted_size == font_size:
-            return style
-        return dc_replace(style, font_size=fitted_size)
 
     def _get_position(self, node: IRNode) -> IRPosition:
         """获取节点位置，无位置时返回默认"""
@@ -1273,28 +737,24 @@ class PPTXRenderer(BaseRenderer):
         return val
 
     def _apply_text_style(self, paragraph, style: IRStyle):
-        """应用文本样式到段落中的每个 run
-
-        设置在 run.font 上（而非 paragraph.font），确保所有 PowerPoint 版本正确渲染。
-        """
+        """应用文本样式到段落"""
+        font = paragraph.font
         family = self._style_val(style, "font_family")
         size = self._style_val(style, "font_size")
         weight = self._style_val(style, "font_weight")
         italic = self._style_val(style, "font_italic")
         color = self._style_val(style, "font_color")
 
-        for run in paragraph.runs:
-            font = run.font
-            if family:
-                font.name = family
-            if size:
-                font.size = Pt(size)
-            if weight:
-                font.bold = weight >= 700
-            if italic is not None:
-                font.italic = italic
-            if color:
-                font.color.rgb = self._hex_to_rgb(color)
+        if family:
+            font.name = family
+        if size:
+            font.size = Pt(size)
+        if weight:
+            font.bold = weight >= 700
+        if italic is not None:
+            font.italic = italic
+        if color:
+            font.color.rgb = self._hex_to_rgb(color)
 
     def _apply_text_layout(self, text_frame, paragraph, node: IRNode):
         """Apply text box layout options carried in node.extra.
@@ -1309,22 +769,18 @@ class PPTXRenderer(BaseRenderer):
             "left": PP_ALIGN.LEFT,
             "center": PP_ALIGN.CENTER,
             "right": PP_ALIGN.RIGHT,
-            "justify": PP_ALIGN.JUSTIFY,
         }.get(align, PP_ALIGN.LEFT)
 
-        explicit_vertical_align = (
-            node.extra.get("vertical_align")
-            or node.extra.get("verticalAlign")
-            or node.extra.get("valign")
-        )
-        if explicit_vertical_align is not None:
-            vertical_align = str(explicit_vertical_align).lower()
-            text_frame.vertical_anchor = {
-                "top": MSO_ANCHOR.TOP,
-                "middle": MSO_ANCHOR.MIDDLE,
-                "center": MSO_ANCHOR.MIDDLE,
-                "bottom": MSO_ANCHOR.BOTTOM,
-            }.get(vertical_align, text_frame.vertical_anchor)
+        vertical_align = str(node.extra.get(
+            "vertical_align",
+            node.extra.get("verticalAlign", node.extra.get("valign", "top")),
+        )).lower()
+        text_frame.vertical_anchor = {
+            "top": MSO_ANCHOR.TOP,
+            "middle": MSO_ANCHOR.MIDDLE,
+            "center": MSO_ANCHOR.MIDDLE,
+            "bottom": MSO_ANCHOR.BOTTOM,
+        }.get(vertical_align, MSO_ANCHOR.TOP)
 
         margins = node.extra.get("margins")
         margin = node.extra.get("margin")
@@ -1348,6 +804,13 @@ class PPTXRenderer(BaseRenderer):
                 text_frame.margin_top = Mm(float(node.extra["margin_top"]))
             if "margin_bottom" in node.extra:
                 text_frame.margin_bottom = Mm(float(node.extra["margin_bottom"]))
+
+    @staticmethod
+    def _is_wrap_disabled(node: IRNode) -> bool:
+        value = node.extra.get("wrap", node.extra.get("word_wrap", True))
+        if isinstance(value, str):
+            return value.lower() in {"false", "no", "0", "nowrap", "none"}
+        return value is False
 
     def _apply_text_warp(self, shape, text_effect: dict[str, Any]):
         """应用 WordArt 文本变换
