@@ -28,7 +28,8 @@ from ..dsl.schema import (
     Slide,
     StyleSpec,
 )
-from .cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.color import OKLCH, oklch_to_hex
 from .types import (
     IRAnimation,
     IRDocument,
@@ -73,14 +74,16 @@ def _parse_length(value: str | float | None, parent_size: float = 0) -> tuple[fl
         return 0.0, False, False
 
 
-def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition:
+def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition | None:
     """将 DSL PositionSpec 编译为 IRPosition（mm 单位）
 
     默认父容器尺寸：标准 16:9 幻灯片 = 254mm x 142.875mm (10" x 5.625")
     注意：190.5mm 是 4:3 幻灯片高度（7.5"），16:9 正确高度是 142.875mm（5.625"）
+
+    返回 None 表示元素未指定位置，由布局引擎（flex/grid/constraint）注入。
     """
     if pos is None:
-        return IRPosition()
+        return None
 
     x, _, _ = _parse_length(pos.x, parent_w)
     y, _, _ = _parse_length(pos.y, parent_h)
@@ -107,6 +110,29 @@ def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h
 # 样式编译
 # ============================================================
 
+import re
+
+_OKLCH_RE = re.compile(
+    r"oklch\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _resolve_color(value: str | None) -> str | None:
+    """解析颜色值，支持 HEX 和 oklch(l, c, h) 格式
+
+    oklch 格式示例: oklch(0.7, 0.15, 30)
+    l: 0-1 亮度, c: 0-0.4 饱和度, h: 0-360 色相
+    """
+    if not value:
+        return value
+    m = _OKLCH_RE.match(value.strip())
+    if m:
+        l, c, h = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        return oklch_to_hex(OKLCH(l=l, c=c, h=h))
+    return value
+
+
 def compile_style(style: StyleSpec | None) -> IRStyle | None:
     """将 DSL StyleSpec 编译为 IRStyle"""
     if style is None:
@@ -118,16 +144,16 @@ def compile_style(style: StyleSpec | None) -> IRStyle | None:
         ir.font_size = style.font.size
         ir.font_weight = style.font.weight
         ir.font_italic = style.font.italic
-        ir.font_color = style.font.color
+        ir.font_color = _resolve_color(style.font.color)
     if style.fill:
-        ir.fill_color = style.fill.color
+        ir.fill_color = _resolve_color(style.fill.color)
         ir.fill_gradient = _gradient_to_dict(style.fill.gradient) if style.fill.gradient else None
         ir.fill_opacity = style.fill.opacity
     if style.shadow:
         ir.shadow = {
             "blur": style.shadow.blur,
             "offset": style.shadow.offset,
-            "color": style.shadow.color,
+            "color": _resolve_color(style.shadow.color),
         }
     if style.border:
         ir.border = style.border
@@ -140,7 +166,7 @@ def _gradient_to_dict(grad) -> dict[str, Any]:
     return {
         "type": grad.type,
         "angle": grad.angle,
-        "stops": grad.stops,
+        "stops": [_resolve_color(s) for s in grad.stops],
     }
 
 
@@ -326,12 +352,16 @@ def compile_element(
     if elem.size:
         w_raw = elem.size.get("width")
         h_raw = elem.size.get("height")
-        if w_raw is not None:
-            w_mm, _, _ = _parse_length(w_raw, parent_w)
-            ir_pos.width_mm = w_mm
-        if h_raw is not None:
-            h_mm, _, _ = _parse_length(h_raw, parent_h)
-            ir_pos.height_mm = h_mm
+        if w_raw is not None or h_raw is not None:
+            # ir_pos 为 None 时创建默认值，避免 AttributeError
+            if ir_pos is None:
+                ir_pos = IRPosition()
+            if w_raw is not None:
+                w_mm, _, _ = _parse_length(w_raw, parent_w)
+                ir_pos.width_mm = w_mm
+            if h_raw is not None:
+                h_mm, _, _ = _parse_length(h_raw, parent_h)
+                ir_pos.height_mm = h_mm
 
     # 图片 source 处理
     source = elem.source

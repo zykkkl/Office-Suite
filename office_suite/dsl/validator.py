@@ -101,6 +101,9 @@ def _check_slides(doc: dict, path: str, result: DSLValidationResult):
     """检查 slides 结构"""
     slides = doc.get("slides")
     if slides is None:
+        pages = doc.get("pages")
+        if isinstance(pages, list):
+            return
         result.issues.append(DSLValidationIssue(
             Severity.WARNING, "文档没有 slides 字段", path, "slides"))
         return

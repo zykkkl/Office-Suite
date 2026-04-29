@@ -157,8 +157,69 @@ PDF + HTML 渲染器。30 项测试全部通过。
 
 | 命令 | 结果 | 状态 |
 |------|------|------|
-| `pytest -q` | 183 passed | ✅ |
-| `pytest -q tests/test_phase0.py tests/test_phase2.py` | 12 passed | ✅ |
+| `pytest -q` | 243 passed | ✅ |
+| `pytest -q tests/test_phase0.py tests/test_phase2.py` | 14 passed | ✅ |
+
+## P0 增强功能
+
+### DOCX 渲染器增强
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 段落格式 | ✅ | 对齐、段前/段后间距、行距、缩进 |
+| 列表渲染 | ✅ | 有序（List Number）/ 无序（List Bullet） |
+| 节分隔符 | ✅ | continuous / new_page / even_page / odd_page |
+| 页面属性 | ✅ | A4/A3/Letter/Legal + 竖向/横向 |
+| 标题级别 | ✅ | extra.heading_level (1-9) + font_size 推断 |
+| 表格样式 | ✅ | extra.table_style 覆盖默认样式 |
+| 幻灯片自动分页 | ✅ | 多幻灯片之间自动插入分页符 |
+
+### XLSX 渲染器增强
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Scatter 图表 | ✅ | openpyxl ScatterChart 支持 |
+| 数字格式 | ✅ | currency / percent / date / integer 等 9 种格式 |
+| 单元格合并 | ✅ | extra.merge_cells 支持字符串和数组格式 |
+| 条件格式 | ✅ | data_bar / color_scale / greater_than |
+| 冻结窗格 | ✅ | extra.freeze_row / freeze_col |
+| 数据标签 | ✅ | extra.show_data_labels |
+| 图例控制 | ✅ | extra.show_legend |
+| 单元格样式增强 | ✅ | fill_color + border 从 IRStyle 应用 |
+
+### 渲染器模块化
+
+| 渲染器 | 新增文件 | 说明 |
+|--------|---------|------|
+| PPTX | slide.py, shape.py, transition.py, master.py | Facade 模式，保持 deck.py 公共 API |
+| DOCX | section.py, block.py, style.py | Facade 模式，委托给 document.py |
+| XLSX | sheet.py, chart.py | Facade 模式，委托给 workbook.py |
+| PDF | font.py | 字体映射逻辑独立模块 |
+| HTML | css.py | CSS 生成工具独立模块 |
+| engine/style | cascade.py | ir/cascade.py 的 facade |
+
+### 架构改进
+
+| 改进 | 说明 |
+|------|------|
+| cascade.py facade | engine/style/cascade.py 作为 ir/cascade.py 的 facade，保持架构层次清晰 |
+| PDF font.py | 字体映射从 canvas.py 提取，可独立使用和测试 |
+| HTML css.py | CSS 生成函数从 dom.py 提取，纯函数无状态 |
+
+## P0 问题解决状态
+
+| 问题 | 状态 | 说明 |
+|------|------|------|
+| Phase 0 测试失败 | ✅ 已修复 | 改用内联最小 YAML，不依赖外部文件 |
+| STATUS.md 测试数量不一致 | ✅ 已修复 | 更新为实际 pytest 运行结果 |
+| DOCX 段落格式缺失 | ✅ 已修复 | 支持对齐、间距、行距、缩进 |
+| DOCX 列表渲染缺失 | ✅ 已修复 | 支持有序/无序列表 |
+| DOCX 节管理缺失 | ✅ 已修复 | 支持分节符和页面属性 |
+| DOCX Word 样式缺失 | ✅ 已修复 | 支持 Heading 1-9 推断和内置样式 |
+| XLSX 图表类型不足 | ✅ 已修复 | 新增 scatter 图表 |
+| XLSX 单元格格式缺失 | ✅ 已修复 | 支持合并、数字格式、条件格式 |
+| XLSX 冻结窗格缺失 | ✅ 已修复 | 支持 freeze_row / freeze_col |
+| 渲染器模块化不符合设计 | ✅ 已修复 | 创建 14 个 facade 模块 |
 
 ## 下一步
 项目核心功能已就绪。后续重点从“能生成”转向“可维护、可追踪、可持续提升视觉质量”：PPTX 渲染器模块化、视觉回归 smoke test、DOCX/XLSX 结构化增强、Hub/Pipeline/Store 合同收敛。

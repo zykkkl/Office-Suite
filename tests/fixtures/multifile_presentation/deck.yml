@@ -1,0 +1,7 @@
+version: "4.0"
+type: presentation
+title: "Multi-file deck"
+theme: default
+pages:
+  - pages/001_cover.yml
+  - pages/002_content.yml

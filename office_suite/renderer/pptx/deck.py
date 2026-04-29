@@ -40,6 +40,7 @@ from PIL import Image
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
+from ..layout_resolver import LayoutResolver, detect_layout_mode
 from .animation import apply_animations
 
 # mm → EMU
@@ -88,7 +89,7 @@ class PPTXRenderer(BaseRenderer):
                 NodeType.SHAPE, NodeType.TABLE, NodeType.CHART,
                 NodeType.GROUP, NodeType.VIDEO,
             },
-            supported_layout_modes={"absolute", "relative"},
+            supported_layout_modes={"absolute", "relative", "grid", "flex", "constraint"},
             supported_text_transforms={"arch", "arch_up", "wave", "circle"},
             supported_animations={"slide_up", "fade_in", "scale_in", "fly_in"},
             supported_effects={"shadow", "glow", "gradient_fill", "opacity"},
@@ -157,8 +158,19 @@ class PPTXRenderer(BaseRenderer):
         if bg_data and not bg_board:
             self._set_background(slide, bg_data)
 
+        # 布局解析：grid/flex/constraint 模式下预计算所有子元素位置
+        layout_mode = detect_layout_mode(slide_node)
+        resolved_positions: dict[str, IRPosition] = {}
+        if layout_mode != "absolute":
+            resolver = LayoutResolver(SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM)
+            resolved_positions = resolver.resolve_children(slide_node)
+
         # 渲染元素
-        for elem_node in slide_node.children:
+        for i, elem_node in enumerate(slide_node.children):
+            # 布局引擎计算的位置始终注入（覆盖旧位置）
+            if resolved_positions:
+                key = elem_node.id or str(i)
+                elem_node.position = resolved_positions.get(key, elem_node.position)
             self._render_element(slide, elem_node, doc)
 
     def _get_layout_index(self, name: str) -> int:
@@ -321,7 +333,20 @@ class PPTXRenderer(BaseRenderer):
         elif node.node_type == NodeType.CHART:
             self._render_chart(slide, node, doc)
         elif node.node_type == NodeType.GROUP:
-            for child in node.children:
+            # GROUP 内的布局解析
+            from ..layout_resolver import detect_layout_mode, LayoutResolver
+            group_mode = detect_layout_mode(node)
+            group_positions: dict[str, IRPosition] = {}
+            if group_mode != "absolute":
+                g_pos = node.position or IRPosition()
+                gw = g_pos.width_mm if g_pos.width_mm > 0 else SLIDE_WIDTH_MM
+                gh = g_pos.height_mm if g_pos.height_mm > 0 else SLIDE_HEIGHT_MM
+                g_resolver = LayoutResolver(gw, gh)
+                group_positions = g_resolver.resolve_children(node)
+            for ci, child in enumerate(node.children):
+                if group_positions:
+                    ckey = child.id or str(ci)
+                    child.position = group_positions.get(ckey, child.position)
                 self._render_element(slide, child, doc)
         else:
             self._render_placeholder(slide, node)
@@ -344,7 +369,7 @@ class PPTXRenderer(BaseRenderer):
 
         p = tf.paragraphs[0]
         p.text = node.content or ""
-        p.alignment = self._get_paragraph_alignment(node.extra.get("align", "left"))
+        self._apply_text_layout(tf, p, node)
 
         if style:
             self._apply_text_style(p, style)
@@ -389,7 +414,7 @@ class PPTXRenderer(BaseRenderer):
             self._apply_text_frame_options(tf, node)
             p = tf.paragraphs[0]
             p.text = node.content
-            p.alignment = self._get_paragraph_alignment(node.extra.get("align", "center"))
+            self._apply_text_layout(tf, p, node)
             if style:
                 fitted = self._fit_text_style_to_box(node.content, pos, style, node)
                 self._apply_text_style(p, fitted)
@@ -1068,24 +1093,81 @@ class PPTXRenderer(BaseRenderer):
         return val
 
     def _apply_text_style(self, paragraph, style: IRStyle):
-        """应用文本样式到段落"""
-        font = paragraph.font
+        """应用文本样式到段落中的每个 run
+
+        设置在 run.font 上（而非 paragraph.font），确保所有 PowerPoint 版本正确渲染。
+        """
         family = self._style_val(style, "font_family")
         size = self._style_val(style, "font_size")
         weight = self._style_val(style, "font_weight")
         italic = self._style_val(style, "font_italic")
         color = self._style_val(style, "font_color")
 
-        if family:
-            font.name = family
-        if size:
-            font.size = Pt(size)
-        if weight:
-            font.bold = weight >= 700
-        if italic is not None:
-            font.italic = italic
-        if color:
-            font.color.rgb = self._hex_to_rgb(color)
+        for run in paragraph.runs:
+            font = run.font
+            if family:
+                font.name = family
+            if size:
+                font.size = Pt(size)
+            if weight:
+                font.bold = weight >= 700
+            if italic is not None:
+                font.italic = italic
+            if color:
+                font.color.rgb = self._hex_to_rgb(color)
+
+    def _apply_text_layout(self, text_frame, paragraph, node: IRNode):
+        """Apply text box layout options carried in node.extra.
+
+        Supported DSL extras:
+          align: left | center | right
+          vertical_align: top | middle | bottom
+          margin: number in mm, or margins: {left, right, top, bottom}
+        """
+        align = str(node.extra.get("align", node.extra.get("text_align", "left"))).lower()
+        paragraph.alignment = {
+            "left": PP_ALIGN.LEFT,
+            "center": PP_ALIGN.CENTER,
+            "right": PP_ALIGN.RIGHT,
+            "justify": PP_ALIGN.JUSTIFY,
+        }.get(align, PP_ALIGN.LEFT)
+
+        explicit_vertical_align = (
+            node.extra.get("vertical_align")
+            or node.extra.get("verticalAlign")
+            or node.extra.get("valign")
+        )
+        if explicit_vertical_align is not None:
+            vertical_align = str(explicit_vertical_align).lower()
+            text_frame.vertical_anchor = {
+                "top": MSO_ANCHOR.TOP,
+                "middle": MSO_ANCHOR.MIDDLE,
+                "center": MSO_ANCHOR.MIDDLE,
+                "bottom": MSO_ANCHOR.BOTTOM,
+            }.get(vertical_align, text_frame.vertical_anchor)
+
+        margins = node.extra.get("margins")
+        margin = node.extra.get("margin")
+        if isinstance(margins, dict):
+            text_frame.margin_left = Mm(float(margins.get("left", node.extra.get("margin_left", 0))))
+            text_frame.margin_right = Mm(float(margins.get("right", node.extra.get("margin_right", 0))))
+            text_frame.margin_top = Mm(float(margins.get("top", node.extra.get("margin_top", 0))))
+            text_frame.margin_bottom = Mm(float(margins.get("bottom", node.extra.get("margin_bottom", 0))))
+        elif margin is not None:
+            margin_mm = Mm(float(margin))
+            text_frame.margin_left = margin_mm
+            text_frame.margin_right = margin_mm
+            text_frame.margin_top = margin_mm
+            text_frame.margin_bottom = margin_mm
+        else:
+            if "margin_left" in node.extra:
+                text_frame.margin_left = Mm(float(node.extra["margin_left"]))
+            if "margin_right" in node.extra:
+                text_frame.margin_right = Mm(float(node.extra["margin_right"]))
+            if "margin_top" in node.extra:
+                text_frame.margin_top = Mm(float(node.extra["margin_top"]))
+            if "margin_bottom" in node.extra:
+                text_frame.margin_bottom = Mm(float(node.extra["margin_bottom"]))
 
     def _apply_text_warp(self, shape, text_effect: dict[str, Any]):
         """应用 WordArt 文本变换

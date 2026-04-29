@@ -1,0 +1,5 @@
+layout: blank
+elements:
+  - type: text
+    content: "Cover"
+    position: { x: 20mm, y: 20mm, width: 120mm, height: 16mm }

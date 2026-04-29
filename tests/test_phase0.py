@@ -1,4 +1,7 @@
-"""Phase 0 技术验证：YAML → IR → PPTX 全流程测试"""
+"""Phase 0 技术验证：YAML → IR → PPTX 全流程测试
+
+使用内联最小 YAML，不依赖外部文件。
+"""
 
 import sys
 from pathlib import Path
@@ -9,19 +12,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from office_suite.dsl.parser import parse_yaml_string
 from office_suite.ir.compiler import compile_document
-from office_suite.ir.types import validate_ir
+from office_suite.ir.validator import validate_ir_v2
 from office_suite.renderer.pptx.deck import PPTXRenderer
 
 
-def test_phase0():
-    """Phase 0 验收标准：
-    1. YAML → IR 解析通过
-    2. IR → PPTX 渲染出页面
-    3. 打开 PPTX 文件确认内容正确
-    """
-    test_dir = Path(__file__).parent
-    output_path = test_dir / "output" / "hello_world.pptx"
-    dsl = """
+# 最小 YAML 定义 — 仅包含一个文本元素
+MINIMAL_YAML = """
 version: "4.0"
 type: presentation
 theme: default
@@ -44,13 +40,25 @@ slides:
           font: { size: 16, color: "#1D4ED8", weight: 600 }
 """
 
+
+def test_phase0():
+    """Phase 0 验收标准：
+    1. YAML → IR 解析通过
+    2. IR 校验通过
+    3. IR → PPTX 渲染出页面
+    """
+    test_dir = Path(__file__).parent
+    output_dir = test_dir / "output"
+    output_dir.mkdir(exist_ok=True)
+    output_path = output_dir / "hello_world.pptx"
+
     print("=" * 60)
     print("Office Suite 4.0 — Phase 0 技术验证")
     print("=" * 60)
 
     # Step 1: DSL → Document
     print("\n[1/4] 解析 DSL...")
-    doc = parse_yaml_string(dsl)
+    doc = parse_yaml_string(MINIMAL_YAML)
     print(f"  文档类型: {doc.type.value}")
     print(f"  主题: {doc.theme}")
     print(f"  幻灯片数: {len(doc.slides)}")
@@ -68,12 +76,14 @@ slides:
 
     # Step 3: IR 校验
     print("\n[3/4] 校验 IR...")
-    warnings = validate_ir(ir_doc)
-    if warnings:
-        for w in warnings:
-            print(f"  [Warning] {w}")
+    validation = validate_ir_v2(ir_doc)
+    for issue in validation.issues:
+        print(f"  [{issue.severity.value}] {issue}")
+    if validation.is_valid:
+        print("  校验通过")
     else:
-        print("  校验通过，无警告")
+        print(f"  校验失败: {len(validation.errors)} 个错误")
+        assert False, f"IR 校验失败: {validation.errors}"
 
     # Step 4: IR → PPTX
     print("\n[4/4] 渲染 PPTX...")
@@ -82,14 +92,13 @@ slides:
     print(f"  输出: {result}")
     print(f"  文件大小: {result.stat().st_size:,} bytes")
 
+    # 验证文件生成成功
+    assert result.exists(), "PPTX 文件未生成"
+    assert result.stat().st_size > 0, "PPTX 文件为空"
+
     print("\n" + "=" * 60)
     print("Phase 0 验证完成!")
-    print(f"请打开 {result} 确认内容正确")
     print("=" * 60)
-
-    assert result.exists()
-    assert result.stat().st_size > 0
-
 
 if __name__ == "__main__":
     test_phase0()
