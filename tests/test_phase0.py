@@ -7,7 +7,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from office_suite.dsl.parser import parse_yaml
+from office_suite.dsl.parser import parse_yaml_string
 from office_suite.ir.compiler import compile_document
 from office_suite.ir.types import validate_ir
 from office_suite.renderer.pptx.deck import PPTXRenderer
@@ -20,8 +20,29 @@ def test_phase0():
     3. 打开 PPTX 文件确认内容正确
     """
     test_dir = Path(__file__).parent
-    dsl_path = test_dir / "hello_world.yml"
     output_path = test_dir / "output" / "hello_world.pptx"
+    dsl = """
+version: "4.0"
+type: presentation
+theme: default
+styles:
+  title:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#0F172A" }
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "Hello Office Suite 4.0"
+        style: title
+        position: { x: 24mm, y: 36mm, width: 190mm, height: 24mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "YAML → IR → PPTX"
+        position: { x: 24mm, y: 72mm, width: 112mm, height: 24mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          font: { size: 16, color: "#1D4ED8", weight: 600 }
+"""
 
     print("=" * 60)
     print("Office Suite 4.0 — Phase 0 技术验证")
@@ -29,7 +50,7 @@ def test_phase0():
 
     # Step 1: DSL → Document
     print("\n[1/4] 解析 DSL...")
-    doc = parse_yaml(dsl_path)
+    doc = parse_yaml_string(dsl)
     print(f"  文档类型: {doc.type.value}")
     print(f"  主题: {doc.theme}")
     print(f"  幻灯片数: {len(doc.slides)}")
@@ -66,7 +87,8 @@ def test_phase0():
     print(f"请打开 {result} 确认内容正确")
     print("=" * 60)
 
-    return result
+    assert result.exists()
+    assert result.stat().st_size > 0
 
 
 if __name__ == "__main__":
