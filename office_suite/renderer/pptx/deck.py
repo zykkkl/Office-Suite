@@ -42,6 +42,7 @@ from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
 from ..layout_resolver import LayoutResolver, detect_layout_mode
 from .animation import apply_animations
+from .shape import get_shape_type
 
 # mm → EMU
 MM_TO_EMU = 36000
@@ -209,11 +210,21 @@ class PPTXRenderer(BaseRenderer):
     def _render_background_board(self, slide, board: dict[str, Any]):
         """Render the slide background board in fixed layer order.
 
-        Layer order: background -> illustration -> scrim -> ornament.
+        Supports two formats:
+          1. Named keys: { background: [...], illustration: [...], ... }
+          2. Flat layers: { layers: [ {type: shape, ...}, ... ] }
+
         safe_area/content_zone is metadata for layout decisions and is not rendered.
         """
         if not isinstance(board, dict):
             return
+        # Flat layers format (DSL shorthand)
+        flat_layers = self._layer_items(board.get("layers"))
+        if flat_layers:
+            for layer in flat_layers:
+                self._render_background_layer(slide, layer, "background")
+            return
+        # Named key format
         for layer_key in ("background", "illustration", "scrim", "ornament"):
             for layer in self._layer_items(board.get(layer_key)):
                 self._render_background_layer(slide, layer, layer_key)
@@ -253,7 +264,14 @@ class PPTXRenderer(BaseRenderer):
         shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
         shape.line.fill.background()
 
+        # Extract fill from style sub-dict if present (DSL format)
+        style = layer.get("style") or {}
+        fill = style.get("fill") if isinstance(style, dict) else {}
+
         gradient = layer.get("gradient")
+        if not gradient and isinstance(fill, dict):
+            gradient = fill.get("gradient")
+
         if layer_type in {"linear_gradient", "radial_gradient"}:
             gradient = {
                 "type": "radial" if layer_type == "radial_gradient" else "linear",
@@ -265,9 +283,14 @@ class PPTXRenderer(BaseRenderer):
             self._apply_gradient_fill(shape.fill, gradient)
         else:
             shape.fill.solid()
-            shape.fill.fore_color.rgb = self._hex_to_rgb(layer.get("color", "#000000"))
+            color = layer.get("color")
+            if not color and isinstance(fill, dict):
+                color = fill.get("color")
+            shape.fill.fore_color.rgb = self._hex_to_rgb(color or "#000000")
 
         opacity = layer.get("opacity")
+        if opacity is None and isinstance(fill, dict):
+            opacity = fill.get("opacity")
         if opacity is not None:
             self._apply_fill_alpha(shape, float(opacity))
 
@@ -429,6 +452,7 @@ class PPTXRenderer(BaseRenderer):
         支持：
           - 本地文件: source="file://path" 或 source="path"
           - MCP/AI 资源: source={mcp__unsplash, query: "..."} → 占位符
+          - duotone 滤镜: extra.filter = { type: duotone, highlight, shadow }
         """
         pos = self._get_position(node)
         left, top, width, height = self._pos_to_emu(pos)
@@ -438,10 +462,14 @@ class PPTXRenderer(BaseRenderer):
             # 尝试作为本地文件
             file_path = Path(source.replace("file://", ""))
             if file_path.exists():
-                self._add_picture_with_fit(
+                picture = self._add_picture_with_fit(
                     slide, file_path, left, top, width, height,
                     fit=node.extra.get("fit", "cover"),
                 )
+                # 应用图片滤镜（支持单个或多个叠加）
+                filter_spec = node.extra.get("filter")
+                if filter_spec and picture:
+                    self._apply_image_filter(picture, filter_spec)
                 return
 
         # 降级：占位符
@@ -694,6 +722,158 @@ class PPTXRenderer(BaseRenderer):
             picture.crop_top = crop
             picture.crop_bottom = crop
         return picture
+
+    def _apply_image_filter(self, picture, filter_spec: dict[str, Any]):
+        """应用图片滤镜
+
+        支持的滤镜类型（PPTX 原生）：
+          - duotone: 双色调 { highlight: "#FFF", shadow: "#000" }
+          - grayscale: 灰度（无参数）
+          - biLevel: 双色阶黑白 { threshold: 0-100 }
+          - blur: 模糊 { radius: 1-100, grow: true/false }
+          - opacity: 透明度 { value: 0-100 }
+          - brightness: 亮度 { value: -100 to 100 }
+          - contrast: 对比度 { value: -100 to 100 }
+
+        也支持简写形式：
+          filter: { highlight: "#FFF", shadow: "#000" }  # 默认 duotone
+          filter: { type: grayscale }
+          filter: [{ type: grayscale }, { type: blur, radius: 5 }]  # 多效果叠加
+        """
+        from lxml import etree
+
+        # 支持单个滤镜或滤镜列表
+        if isinstance(filter_spec, list):
+            for f in filter_spec:
+                self._apply_single_filter(picture, f)
+        else:
+            self._apply_single_filter(picture, filter_spec)
+
+    def _apply_single_filter(self, picture, filter_spec: dict[str, Any]):
+        """应用单个图片滤镜"""
+        from lxml import etree
+
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        # 获取 blip 元素
+        blip = picture._element.find(f'.//{{{a_ns}}}blip')
+        if blip is None:
+            return
+
+        # 推断类型：有 highlight/shadow → duotone，否则从 type 字段读
+        filter_type = filter_spec.get("type")
+        if filter_type is None and ("highlight" in filter_spec or "shadow" in filter_spec):
+            filter_type = "duotone"
+        filter_type = filter_type or "duotone"
+
+        # 类型分派
+        if filter_type == "duotone":
+            self._apply_duotone(blip, filter_spec)
+        elif filter_type == "grayscale":
+            self._apply_grayscale(blip)
+        elif filter_type == "biLevel":
+            self._apply_bilevel(blip, filter_spec)
+        elif filter_type == "blur":
+            self._apply_blur(picture, filter_spec)
+        elif filter_type == "opacity":
+            self._apply_image_opacity(blip, filter_spec)
+        elif filter_type in ("brightness", "contrast"):
+            self._apply_luminance(blip, filter_spec)
+
+    def _apply_duotone(self, blip, spec: dict[str, Any]):
+        """双色调"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        for old in blip.findall(f'{{{a_ns}}}duotone'):
+            blip.remove(old)
+
+        duotone = etree.SubElement(blip, f'{{{a_ns}}}duotone')
+        srgb1 = etree.SubElement(duotone, f'{{{a_ns}}}srgbClr')
+        srgb1.set('val', spec.get("highlight", "#FFFFFF").lstrip('#'))
+        srgb2 = etree.SubElement(duotone, f'{{{a_ns}}}srgbClr')
+        srgb2.set('val', spec.get("shadow", "#000000").lstrip('#'))
+
+    def _apply_grayscale(self, blip):
+        """灰度"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        for old in blip.findall(f'{{{a_ns}}}grayscl'):
+            blip.remove(old)
+        etree.SubElement(blip, f'{{{a_ns}}}grayscl')
+
+    def _apply_bilevel(self, blip, spec: dict[str, Any]):
+        """双色阶（黑白）"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        for old in blip.findall(f'{{{a_ns}}}biLevel'):
+            blip.remove(old)
+        bi = etree.SubElement(blip, f'{{{a_ns}}}biLevel')
+        # threshold: 0-100 → PPTX 0-100000
+        threshold = int(spec.get("threshold", 50) * 1000)
+        bi.set('thresh', str(threshold))
+
+    def _apply_blur(self, picture, spec: dict[str, Any]):
+        """模糊（注入到 effectLst）"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        sp_pr = getattr(picture._element, 'spPr', None)
+        if sp_pr is None:
+            return
+        effect_lst = sp_pr.find(f'{{{a_ns}}}effectLst')
+        if effect_lst is None:
+            effect_lst = etree.SubElement(sp_pr, f'{{{a_ns}}}effectLst')
+
+        for old in effect_lst.findall(f'{{{a_ns}}}blur'):
+            effect_lst.remove(old)
+        blur = etree.SubElement(effect_lst, f'{{{a_ns}}}blur')
+        # radius: 1-100 → PPTX EMU (1pt = 12700)
+        radius = int(spec.get("radius", 5) * 12700)
+        blur.set('rad', str(radius))
+        blur.set('grow', '1' if spec.get("grow", True) else '0')
+
+    def _apply_image_opacity(self, blip, spec: dict[str, Any]):
+        """透明度"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        for old in blip.findall(f'{{{a_ns}}}alphaModFix'):
+            blip.remove(old)
+        alpha = etree.SubElement(blip, f'{{{a_ns}}}alphaModFix')
+        # value: 0-100 → PPTX 0-100000
+        amount = int(spec.get("value", 100) * 1000)
+        alpha.set('amt', str(amount))
+
+    def _apply_luminance(self, blip, spec: dict[str, Any]):
+        """亮度/对比度 — 通过 <a:effectLst>/<a:lum> 实现"""
+        from lxml import etree
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        filter_type = spec.get("type", "brightness")
+        value = spec.get("value", 0)
+
+        # lum 需要嵌套在 blipFill 的 effectLst 中
+        blip_fill = blip.getparent()
+        if blip_fill is None:
+            return
+
+        effect_lst = blip_fill.find(f'{{{a_ns}}}effectLst')
+        if effect_lst is None:
+            effect_lst = etree.SubElement(blip_fill, f'{{{a_ns}}}effectLst')
+
+        # 清理旧 lum 元素
+        for old in effect_lst.findall(f'{{{a_ns}}}lum'):
+            effect_lst.remove(old)
+
+        lum = etree.SubElement(effect_lst, f'{{{a_ns}}}lum')
+        # value: -100 to 100 → PPTX -100000 to 100000
+        if filter_type == "brightness":
+            lum.set('bright', str(int(value * 1000)))
+        elif filter_type == "contrast":
+            lum.set('contrast', str(int(value * 1000)))
 
     # ============================================================
     # 填充/边框/样式辅助方法

@@ -24,11 +24,7 @@ env/
 Thumbs.db
 
 # Output files (generated, not source)
-tests/output/*.pptx
-tests/output/*.docx
-tests/output/*.xlsx
-tests/output/*.pdf
-tests/output/*.html
+tests/output/*
 
 # Environment
 .env

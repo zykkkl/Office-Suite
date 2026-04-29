@@ -254,6 +254,7 @@ class IRDocument:
     doc_type: str = "presentation"
     theme: str = "default"
     title: str = ""
+    style_preset: str = ""  # 设计令牌预设：corporate/editorial/creative/minimal/tech/elegant/flat/chinese/warm
     # 全局样式表
     styles: dict[str, IRStyle] = field(default_factory=dict)
     # 全局数据

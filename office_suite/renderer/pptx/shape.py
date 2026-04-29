@@ -10,7 +10,7 @@ deck.py 中的 _render_shape / _apply_shape_fill / _apply_shape_border / _get_sh
 from pptx.enum.shapes import MSO_SHAPE
 
 
-# 形状名称 → MSO_SHAPE 映射
+# 形状名称 → MSO_SHAPE 映射（合并自 deck.py + shape.py）
 SHAPE_TYPE_MAP = {
     "rectangle": MSO_SHAPE.RECTANGLE,
     "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
@@ -20,8 +20,10 @@ SHAPE_TYPE_MAP = {
     "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
     "star": MSO_SHAPE.STAR_5_POINT,
     "hexagon": MSO_SHAPE.HEXAGON,
+    "pentagon": MSO_SHAPE.PENTAGON,
     "arrow": MSO_SHAPE.RIGHT_ARROW,
     "chevron": MSO_SHAPE.CHEVRON,
+    "cross": MSO_SHAPE.CROSS,
     "heart": MSO_SHAPE.HEART,
     "lightning_bolt": MSO_SHAPE.LIGHTNING_BOLT,
 }

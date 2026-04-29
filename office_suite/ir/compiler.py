@@ -899,10 +899,59 @@ def compile_slide(
 
 def compile_document(doc: Document) -> IRDocument:
     """将 DSL Document 编译为 IRDocument"""
-    # 编译全局样式 → IR 样式表
-    doc_ir_styles = {}
+    # 处理 style_preset — 从设计令牌生成默认样式
+    preset_name = doc.style_preset or ""
+    preset_styles = {}
+    if preset_name:
+        try:
+            from ..design.tokens import PALETTE, TYPOGRAPHY
+            pal = PALETTE.get(preset_name, {})
+            if pal:
+                # 从预设生成基础样式
+                preset_styles["title"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["cover_title"].size,
+                    font_weight=TYPOGRAPHY["cover_title"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["heading"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["heading"].size,
+                    font_weight=TYPOGRAPHY["heading"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["body"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["body"].size,
+                    font_weight=TYPOGRAPHY["body"].weight,
+                    font_color=pal.get("text", "#0F172A"),
+                )
+                preset_styles["caption"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["caption"].size,
+                    font_weight=TYPOGRAPHY["caption"].weight,
+                    font_color=pal.get("text_secondary", "#64748B"),
+                )
+                preset_styles["accent"] = IRStyle(
+                    font_family="Microsoft YaHei UI",
+                    font_size=TYPOGRAPHY["body"].size,
+                    font_weight=600,
+                    font_color=pal.get("primary", "#2563EB"),
+                )
+        except ImportError:
+            pass  # design 模块不可用时跳过
+
+    # 编译全局样式 → IR 样式表（预设样式作为底层，用户样式覆盖）
+    doc_ir_styles = dict(preset_styles)  # 预设作为默认
     for name, style_spec in doc.styles.items():
-        doc_ir_styles[name] = compile_style(style_spec) or IRStyle()
+        compiled = compile_style(style_spec)
+        if compiled:
+            # 用户样式覆盖预设样式（只覆盖非 None 字段）
+            if name in doc_ir_styles:
+                base = doc_ir_styles[name]
+                doc_ir_styles[name] = _merge_styles(base, compiled)
+            else:
+                doc_ir_styles[name] = compiled
 
     # 编译幻灯片
     slides = []
@@ -915,8 +964,20 @@ def compile_document(doc: Document) -> IRDocument:
         doc_type=doc.type.value,
         theme=doc.theme,
         title=doc.title,
+        style_preset=preset_name,
         styles=doc_ir_styles,
         data={k: v for k, v in doc.data.items()},
         children=slides,
         raw_dsl=doc.raw,
     )
+
+
+def _merge_styles(base: IRStyle, override: IRStyle) -> IRStyle:
+    """合并两个 IRStyle，override 中非 None 字段覆盖 base"""
+    from dataclasses import fields, replace as dc_replace
+    merged = base
+    for f in fields(IRStyle):
+        val = getattr(override, f.name)
+        if val is not None:
+            merged = dc_replace(merged, **{f.name: val})
+    return merged

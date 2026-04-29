@@ -719,6 +719,177 @@ slides:
     assert "OVERLAY" in slide_xml
 
 
+def _make_test_image(tmp_path, name="test.png"):
+    """创建临时测试图片"""
+    img_path = tmp_path / name
+    img = Image.new("RGB", (200, 150), color=(100, 150, 200))
+    img.save(img_path)
+    return img_path
+
+
+def _render_filter_dsl(tmp_path, img_path, filter_yaml, output_name="output.pptx"):
+    """渲染带滤镜的 DSL"""
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+        extra:
+          filter:
+{filter_yaml}
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / output_name
+    PPTXRenderer().render(ir, output)
+    return output
+
+
+def test_duotone_filter(tmp_path):
+    """图片 duotone 双色调滤镜"""
+    img_path = _make_test_image(tmp_path)
+    output = _render_filter_dsl(tmp_path, img_path, """            type: duotone
+            highlight: "#FFFFFF"
+            shadow: "#1E293B" """)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" in slide_xml
+    assert "FFFFFF" in slide_xml
+    assert "1E293B" in slide_xml
+
+
+def test_duotone_shorthand(tmp_path):
+    """duotone 简写：省略 type 字段"""
+    img_path = _make_test_image(tmp_path, "shorthand.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            highlight: "#F0F0F0"
+            shadow: "#333333" """, "shorthand.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" in slide_xml
+
+
+def test_grayscale_filter(tmp_path):
+    """灰度滤镜"""
+    img_path = _make_test_image(tmp_path, "gray.png")
+    output = _render_filter_dsl(tmp_path, img_path, "            type: grayscale", "grayscale.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "grayscl" in slide_xml
+
+
+def test_bilevel_filter(tmp_path):
+    """双色阶黑白滤镜"""
+    img_path = _make_test_image(tmp_path, "bilevel.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: biLevel
+            threshold: 40""", "bilevel.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "biLevel" in slide_xml
+
+
+def test_blur_filter(tmp_path):
+    """模糊滤镜"""
+    img_path = _make_test_image(tmp_path, "blur.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: blur
+            radius: 10""", "blur.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "blur" in slide_xml
+
+
+def test_opacity_filter(tmp_path):
+    """透明度滤镜"""
+    img_path = _make_test_image(tmp_path, "opacity.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: opacity
+            value: 50""", "opacity.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "alphaModFix" in slide_xml
+
+
+def test_brightness_filter(tmp_path):
+    """亮度滤镜"""
+    img_path = _make_test_image(tmp_path, "bright.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: brightness
+            value: 30""", "brightness.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "lum" in slide_xml
+
+
+def test_multi_filter_stack(tmp_path):
+    """多滤镜叠加：灰度 + 透明度"""
+    img_path = _make_test_image(tmp_path, "multi.png")
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+        extra:
+          filter:
+            - type: grayscale
+            - type: opacity
+              value: 60
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "multi_filter.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "grayscl" in slide_xml
+    assert "alphaModFix" in slide_xml
+
+
+def test_no_filter(tmp_path):
+    """无滤镜时正常渲染"""
+    img_path = _make_test_image(tmp_path, "nofilter.png")
+    dsl = f"""
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: image
+        source: "{img_path.as_posix()}"
+        position: {{ x: 20mm, y: 20mm, width: 100mm, height: 80mm }}
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "no_filter.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "duotone" not in slide_xml
+    assert "grayscl" not in slide_xml
+
+
 # ============================================================
 # 主函数
 # ============================================================
@@ -728,16 +899,29 @@ def main():
     print("  Office Suite 4.0 — Phase 2 测试套件")
     print("=" * 60)
 
-    test_master_layouts()
-    test_chart_rendering()
-    test_table_styling()
-    test_gradient_fill()
-    test_shadow_border()
-    test_shape_types()
-    test_position_extras()
-    test_group_nesting()
-    test_style_cascade_integration()
-    test_e2e_comprehensive()
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        from pathlib import Path
+        tmp_path = Path(tmp)
+        test_master_layouts()
+        test_chart_rendering()
+        test_table_styling()
+        test_gradient_fill()
+        test_shadow_border()
+        test_shape_types()
+        test_position_extras()
+        test_group_nesting()
+        test_style_cascade_integration()
+        test_e2e_comprehensive()
+        test_duotone_filter(tmp_path)
+        test_duotone_shorthand(tmp_path)
+        test_grayscale_filter(tmp_path)
+        test_bilevel_filter(tmp_path)
+        test_blur_filter(tmp_path)
+        test_opacity_filter(tmp_path)
+        test_brightness_filter(tmp_path)
+        test_multi_filter_stack(tmp_path)
+        test_no_filter(tmp_path)
 
     print(f"\n{'=' * 60}")
     print(f"  结果:  PASS={_pass_count}  FAIL={_fail_count}")

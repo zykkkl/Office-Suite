@@ -1,0 +1,428 @@
+version: "4.0"
+type: presentation
+style_preset: corporate
+title: "老旧小区改造方案"
+
+styles:
+  cover_title:
+    font: { family: "Microsoft YaHei UI", size: 44, weight: 700, color: "#FFFFFF" }
+  cover_subtitle:
+    font: { family: "Microsoft YaHei UI", size: 18, color: "#DBEAFE" }
+  section_title:
+    font: { family: "Microsoft YaHei UI", size: 28, weight: 700, color: "#0F172A" }
+  card_title:
+    font: { family: "Microsoft YaHei UI", size: 15, weight: 700, color: "#1E293B" }
+  card_body:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#475569" }
+  highlight:
+    font: { family: "Microsoft YaHei UI", size: 14, weight: 600, color: "#1E40AF" }
+  stat_big:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#1E40AF" }
+  stat_label:
+    font: { family: "Microsoft YaHei UI", size: 11, color: "#64748B" }
+  timeline_year:
+    font: { family: "Microsoft YaHei UI", size: 14, weight: 700, color: "#1E40AF" }
+  timeline_text:
+    font: { family: "Microsoft YaHei UI", size: 11, color: "#334155" }
+  table_header:
+    font: { family: "Microsoft YaHei UI", size: 11, weight: 600, color: "#FFFFFF" }
+  source_text:
+    font: { family: "Microsoft YaHei UI", size: 9, color: "#94A3B8", italic: true }
+
+slides:
+  # ===== 封面 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { color: "#0F172A" }
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 40% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#1E40AF", "#3B82F6"] } }
+    elements:
+      - type: text
+        content: "老旧小区综合改造方案"
+        position: { x: 35mm, y: 30mm, width: 184mm, height: 25mm }
+        style: cover_title
+      - type: text
+        content: "提升居住品质 · 完善社区功能 · 打造宜居家园"
+        position: { x: 35mm, y: 58mm, width: 184mm, height: 12mm }
+        style: cover_subtitle
+      - type: shape
+        shape: rect
+        position: { x: 35mm, y: 75mm, width: 35mm, height: 1.5mm }
+        style:
+          fill: { color: "#60A5FA" }
+      - type: text
+        content: "XX 街道办事处  |  2026 年度"
+        position: { x: 35mm, y: 85mm, width: 184mm, height: 10mm }
+        style: cover_subtitle
+
+  # ===== 项目背景 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "项目背景与现状"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#1E40AF" }
+
+      # 数据卡片
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 46mm, height: 35mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "15"
+        position: { x: 25mm, y: 34mm, width: 46mm, height: 14mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "建成年数"
+        position: { x: 25mm, y: 48mm, width: 46mm, height: 7mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 77mm, y: 32mm, width: 46mm, height: 35mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "1,280"
+        position: { x: 77mm, y: 34mm, width: 46mm, height: 14mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "涉及住户"
+        position: { x: 77mm, y: 48mm, width: 46mm, height: 7mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 129mm, y: 32mm, width: 46mm, height: 35mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "32"
+        position: { x: 129mm, y: 34mm, width: 46mm, height: 14mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "涉及楼栋"
+        position: { x: 129mm, y: 48mm, width: 46mm, height: 7mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 181mm, y: 32mm, width: 48mm, height: 35mm }
+        style:
+          fill: { color: "#FEF2F2" }
+          border: { color: "#FECACA", width: 1 }
+      - type: text
+        content: "86%"
+        position: { x: 181mm, y: 34mm, width: 48mm, height: 14mm }
+        style: stat_big
+        extra: { align: center }
+      - type: text
+        content: "设施老化率"
+        position: { x: 181mm, y: 48mm, width: 48mm, height: 7mm }
+        style: stat_label
+        extra: { align: center }
+
+      # 现状问题
+      - type: text
+        content: "核心问题"
+        position: { x: 25mm, y: 74mm, width: 100mm, height: 8mm }
+        style: card_title
+
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 84mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 4, offset: [0, 1], color: "#00000008" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "基础设施"
+        position: { x: 30mm, y: 87mm, width: 88mm, height: 7mm }
+        style: highlight
+      - type: text
+        content: "供水管网锈蚀漏水，排水管道堵塞频发，冬季供暖不达标，强弱电线缆杂乱外露，道路破损积水严重。"
+        position: { x: 30mm, y: 95mm, width: 88mm, height: 32mm }
+        style: card_body
+
+      - type: shape
+        shape: round_rect
+        position: { x: 131mm, y: 84mm, width: 98mm, height: 48mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 4, offset: [0, 1], color: "#00000008" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "居住环境"
+        position: { x: 136mm, y: 87mm, width: 88mm, height: 7mm }
+        style: highlight
+      - type: text
+        content: "外墙保温层脱落，楼顶渗漏普遍，楼道照明缺失，消防通道被占用，绿化带荒废，缺少无障碍设施。"
+        position: { x: 136mm, y: 95mm, width: 88mm, height: 32mm }
+        style: card_body
+
+  # ===== 改造内容 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "改造内容"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#1E40AF" }
+
+      # 基础类
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 66mm, height: 100mm }
+        style:
+          fill: { color: "#F8FAFC" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 32mm, width: 66mm, height: 7mm }
+        style:
+          fill: { color: "#1E40AF" }
+      - type: text
+        content: "基础类（必改）"
+        position: { x: 25mm, y: 32mm, width: 66mm, height: 7mm }
+        style: { font: { size: 11, weight: 600, color: "#FFFFFF" } }
+        extra: { align: center }
+      - type: text
+        content: "供水管网改造\n排水系统雨污分流\n供暖管道更换\n强弱电入地\n道路修缮与黑化\n路灯照明更新\n消防设施升级\n外墙保温防水"
+        position: { x: 28mm, y: 42mm, width: 60mm, height: 85mm }
+        style: card_body
+
+      # 完善类
+      - type: shape
+        shape: round_rect
+        position: { x: 97mm, y: 32mm, width: 66mm, height: 100mm }
+        style:
+          fill: { color: "#F8FAFC" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: shape
+        shape: rect
+        position: { x: 97mm, y: 32mm, width: 66mm, height: 7mm }
+        style:
+          fill: { color: "#059669" }
+      - type: text
+        content: "完善类（宜改）"
+        position: { x: 97mm, y: 32mm, width: 66mm, height: 7mm }
+        style: { font: { size: 11, weight: 600, color: "#FFFFFF" } }
+        extra: { align: center }
+      - type: text
+        content: "加装电梯\n增设停车位\n非机动车充电桩\n快递柜/智能柜\n垃圾分类点\n适老化改造\n无障碍坡道\n单元门禁系统"
+        position: { x: 100mm, y: 42mm, width: 60mm, height: 85mm }
+        style: card_body
+
+      # 提升类
+      - type: shape
+        shape: round_rect
+        position: { x: 169mm, y: 32mm, width: 66mm, height: 100mm }
+        style:
+          fill: { color: "#F8FAFC" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: shape
+        shape: rect
+        position: { x: 169mm, y: 32mm, width: 66mm, height: 7mm }
+        style:
+          fill: { color: "#D97706" }
+      - type: text
+        content: "提升类（愿改）"
+        position: { x: 169mm, y: 32mm, width: 66mm, height: 7mm }
+        style: { font: { size: 11, weight: 600, color: "#FFFFFF" } }
+        extra: { align: center }
+      - type: text
+        content: "社区服务中心\n文化活动广场\n儿童游乐设施\n健身步道/器材\n绿化景观提升\n智慧社区平台\n社区养老驿站\n便民商业配套"
+        position: { x: 172mm, y: 42mm, width: 60mm, height: 85mm }
+        style: card_body
+
+  # ===== 改造前后对比 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "改造前后对比"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#1E40AF" }
+
+      - type: table
+        position: { x: 25mm, y: 32mm, width: 204mm, height: 100mm }
+        extra:
+          columns:
+            - { header: "改造项目", width: 22% }
+            - { header: "改造前", width: 30% }
+            - { header: "改造后", width: 30% }
+            - { header: "提升效果", width: 18% }
+          data:
+            - ["供水管网", "铸铁管锈蚀，水质发黄", "PPR 热熔管，分户计量", "水质达标 100%"]
+            - ["排水系统", "雨污合流，暴雨内涝", "雨污分流，增设雨水花园", "内涝消除"]
+            - ["道路路面", "沥青龟裂，积水坑洼", "沥青罩面，透水铺装", "平整度 95%+"]
+            - ["外墙保温", "保温层脱落，能耗高", "80mm 岩棉+真石漆", "节能 30%"]
+            - ["楼道环境", "照明缺失，堆放杂物", "LED 声控灯，墙面翻新", "明亮整洁"]
+            - ["停车管理", "随意停放，堵塞消防", "划线车位，智能道闸", "车位增 40%"]
+            - ["绿化景观", "黄土裸露，缺乏养护", "补植乔灌，休闲步道", "绿化率 35%"]
+            - ["安防系统", "无门禁，监控缺失", "人脸识别门禁+全覆盖监控", "案件降 60%"]
+
+  # ===== 实施计划 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "实施计划"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 22mm, height: 1.2mm }
+        style:
+          fill: { color: "#1E40AF" }
+
+      # 时间轴 - 主线
+      - type: shape
+        shape: rect
+        position: { x: 40mm, y: 45mm, width: 180mm, height: 1.5mm }
+        style:
+          fill: { color: "#BFDBFE" }
+
+      # 阶段 1
+      - type: shape
+        shape: round_rect
+        position: { x: 40mm, y: 38mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#1E40AF" }
+      - type: text
+        content: "2026 Q2"
+        position: { x: 25mm, y: 52mm, width: 40mm, height: 7mm }
+        style: timeline_year
+      - type: text
+        content: "前期准备\n入户调查\n方案公示\n招标采购"
+        position: { x: 25mm, y: 60mm, width: 40mm, height: 30mm }
+        style: timeline_text
+
+      # 阶段 2
+      - type: shape
+        shape: round_rect
+        position: { x: 88mm, y: 38mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#1E40AF" }
+      - type: text
+        content: "2026 Q3"
+        position: { x: 73mm, y: 52mm, width: 40mm, height: 7mm }
+        style: timeline_year
+      - type: text
+        content: "基础施工\n管网改造\n道路修缮\n外墙保温"
+        position: { x: 73mm, y: 60mm, width: 40mm, height: 30mm }
+        style: timeline_text
+
+      # 阶段 3
+      - type: shape
+        shape: round_rect
+        position: { x: 136mm, y: 38mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#1E40AF" }
+      - type: text
+        content: "2026 Q4"
+        position: { x: 121mm, y: 52mm, width: 40mm, height: 7mm }
+        style: timeline_year
+      - type: text
+        content: "完善施工\n电梯加装\n停车改造\n绿化提升"
+        position: { x: 121mm, y: 60mm, width: 40mm, height: 30mm }
+        style: timeline_text
+
+      # 阶段 4
+      - type: shape
+        shape: round_rect
+        position: { x: 184mm, y: 38mm, width: 10mm, height: 10mm }
+        style:
+          fill: { color: "#16A34A" }
+      - type: text
+        content: "2027 Q1"
+        position: { x: 169mm, y: 52mm, width: 40mm, height: 7mm }
+        style: timeline_year
+      - type: text
+        content: "竣工验收\n居民回访\n物业移交\n质保运维"
+        position: { x: 169mm, y: 60mm, width: 40mm, height: 30mm }
+        style: timeline_text
+
+      # 投资概算
+      - type: text
+        content: "投资概算"
+        position: { x: 25mm, y: 100mm, width: 100mm, height: 8mm }
+        style: card_title
+      - type: table
+        position: { x: 25mm, y: 110mm, width: 204mm, height: 28mm }
+        extra:
+          columns:
+            - { header: "类别", width: 25% }
+            - { header: "预算（万元）", width: 25% }
+            - { header: "占比", width: 25% }
+            - { header: "资金来源", width: 25% }
+          data:
+            - ["基础类", "2,800", "56%", "中央/省级补助"]
+            - ["完善类", "1,500", "30%", "市区配套+居民分摊"]
+            - ["提升类", "700", "14%", "社会资本+社区自筹"]
+
+  # ===== 总结 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#0F172A", "#1E293B"] } }
+    elements:
+      - type: text
+        content: "改造一个小区"
+        position: { x: 35mm, y: 30mm, width: 184mm, height: 20mm }
+        style: cover_title
+      - type: text
+        content: "温暖一方百姓"
+        position: { x: 35mm, y: 52mm, width: 184mm, height: 18mm }
+        style: cover_title
+      - type: shape
+        shape: rect
+        position: { x: 35mm, y: 76mm, width: 35mm, height: 1.5mm }
+        style:
+          fill: { color: "#60A5FA" }
+      - type: text
+        content: "让老旧小区焕发新生，让居民生活更有品质"
+        position: { x: 35mm, y: 85mm, width: 184mm, height: 10mm }
+        style: cover_subtitle
+      - type: text
+        content: "以人为本  |  问需于民  |  共建共享"
+        position: { x: 35mm, y: 105mm, width: 184mm, height: 10mm }
+        style: cover_subtitle

@@ -260,6 +260,7 @@ def parse_document(raw: dict[str, Any], base_dir: Path | None = None) -> Documen
         type=doc_type,
         theme=raw.get("theme", "default"),
         title=raw.get("title", ""),
+        style_preset=raw.get("style_preset", ""),
         data=data_bindings,
         styles=styles,
         slides=slides,

@@ -1,0 +1,447 @@
+version: "4.0"
+type: presentation
+style_preset: corporate
+title: "吃苹果的好处"
+
+styles:
+  cover_title:
+    font: { family: "Microsoft YaHei UI", size: 48, weight: 700, color: "#FFFFFF" }
+  cover_subtitle:
+    font: { family: "Microsoft YaHei UI", size: 20, color: "#E2E8F0" }
+  section_title:
+    font: { family: "Microsoft YaHei UI", size: 32, weight: 700, color: "#0F172A" }
+  body_text:
+    font: { family: "Microsoft YaHei UI", size: 14, color: "#334155" }
+  highlight:
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 600, color: "#DC2626" }
+  card_title:
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#1E293B" }
+  card_body:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#475569" }
+  stat_number:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#DC2626" }
+  stat_label:
+    font: { family: "Microsoft YaHei UI", size: 12, color: "#64748B" }
+  source_text:
+    font: { family: "Microsoft YaHei UI", size: 9, color: "#94A3B8", italic: true }
+
+slides:
+  # ===== 封面 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { color: "#0F172A" }
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 45% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#DC2626", "#F97316"] } }
+    elements:
+      - type: text
+        content: "每天一个苹果"
+        position: { x: 40mm, y: 35mm, width: 180mm, height: 25mm }
+        style: cover_title
+      - type: text
+        content: "医生远离我"
+        position: { x: 40mm, y: 58mm, width: 180mm, height: 20mm }
+        style: cover_title
+      - type: text
+        content: "科学解读苹果的营养价值与健康益处"
+        position: { x: 40mm, y: 82mm, width: 180mm, height: 12mm }
+        style: cover_subtitle
+      - type: shape
+        shape: rect
+        position: { x: 40mm, y: 98mm, width: 40mm, height: 1.5mm }
+        style:
+          fill: { color: "#F97316" }
+      - type: text
+        content: "2026 年健康饮食指南"
+        position: { x: 40mm, y: 105mm, width: 180mm, height: 10mm }
+        style: cover_subtitle
+
+  # ===== 数据概览 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "一颗苹果的数据"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 25mm, height: 1.2mm }
+        style:
+          fill: { color: "#DC2626" }
+
+      # 营养数据卡片
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 58mm, height: 38mm }
+        style:
+          fill: { color: "#FEF2F2" }
+          border: { color: "#FECACA", width: 1 }
+      - type: text
+        content: "95"
+        position: { x: 25mm, y: 34mm, width: 58mm, height: 16mm }
+        style: stat_number
+        extra: { align: center }
+      - type: text
+        content: "千卡 / 每颗"
+        position: { x: 25mm, y: 50mm, width: 58mm, height: 8mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 93mm, y: 32mm, width: 58mm, height: 38mm }
+        style:
+          fill: { color: "#FEF2F2" }
+          border: { color: "#FECACA", width: 1 }
+      - type: text
+        content: "4.4g"
+        position: { x: 93mm, y: 34mm, width: 58mm, height: 16mm }
+        style: stat_number
+        extra: { align: center }
+      - type: text
+        content: "膳食纤维"
+        position: { x: 93mm, y: 50mm, width: 58mm, height: 8mm }
+        style: stat_label
+        extra: { align: center }
+
+      - type: shape
+        shape: round_rect
+        position: { x: 161mm, y: 32mm, width: 58mm, height: 38mm }
+        style:
+          fill: { color: "#FEF2F2" }
+          border: { color: "#FECACA", width: 1 }
+      - type: text
+        content: "14%"
+        position: { x: 161mm, y: 34mm, width: 58mm, height: 16mm }
+        style: stat_number
+        extra: { align: center }
+      - type: text
+        content: "每日维生素C"
+        position: { x: 161mm, y: 50mm, width: 58mm, height: 8mm }
+        style: stat_label
+        extra: { align: center }
+
+      # 营养成分表
+      - type: text
+        content: "主要营养成分（每 182g 中等苹果）"
+        position: { x: 25mm, y: 76mm, width: 200mm, height: 8mm }
+        style: card_title
+      - type: table
+        position: { x: 25mm, y: 86mm, width: 200mm, height: 48mm }
+        extra:
+          columns:
+            - { header: "营养素", width: 25% }
+            - { header: "含量", width: 20% }
+            - { header: "每日占比", width: 20% }
+            - { header: "作用", width: 35% }
+          data:
+            - ["碳水化合物", "25g", "9%", "能量供给"]
+            - ["膳食纤维", "4.4g", "16%", "促进消化"]
+            - ["维生素 C", "8.4mg", "14%", "免疫抗氧化"]
+            - ["钾", "195mg", "6%", "调节血压"]
+
+      - type: text
+        content: "数据来源：USDA FoodData Central"
+        position: { x: 25mm, y: 136mm, width: 200mm, height: 5mm }
+        style: source_text
+
+  # ===== 健康益处（上）=====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "苹果的六大健康益处"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 25mm, height: 1.2mm }
+        style:
+          fill: { color: "#DC2626" }
+
+      # 卡片 1：心脏健康
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "01"
+        position: { x: 30mm, y: 35mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "保护心脏"
+        position: { x: 44mm, y: 35mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "苹果富含可溶性纤维和多酚类物质，有助于降低血液中的胆固醇水平。每天一个苹果可降低 12% 心血管疾病风险。"
+        position: { x: 30mm, y: 45mm, width: 80mm, height: 32mm }
+        style: card_body
+
+      # 卡片 2：促进消化
+      - type: shape
+        shape: round_rect
+        position: { x: 125mm, y: 32mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "02"
+        position: { x: 130mm, y: 35mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "促进消化"
+        position: { x: 144mm, y: 35mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "苹果中的果胶是益生元，促进肠道有益菌群生长。丰富的膳食纤维帮助维持肠道规律运转。"
+        position: { x: 130mm, y: 45mm, width: 80mm, height: 32mm }
+        style: card_body
+
+      # 卡片 3：控制体重
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 88mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "03"
+        position: { x: 30mm, y: 91mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "辅助控重"
+        position: { x: 44mm, y: 91mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "热量低（约 95 千卡）、饱腹感强。研究显示餐前吃苹果可减少正餐摄入量约 15%。"
+        position: { x: 30mm, y: 101mm, width: 80mm, height: 32mm }
+        style: card_body
+
+      # 卡片 4：增强免疫
+      - type: shape
+        shape: round_rect
+        position: { x: 125mm, y: 88mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "04"
+        position: { x: 130mm, y: 91mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "增强免疫"
+        position: { x: 144mm, y: 91mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "维生素 C 和槲皮素等黄酮类化合物具有抗炎抗过敏特性，增强免疫系统功能。"
+        position: { x: 130mm, y: 101mm, width: 80mm, height: 32mm }
+        style: card_body
+
+  # ===== 健康益处（下）=====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "更多健康益处"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 25mm, height: 1.2mm }
+        style:
+          fill: { color: "#DC2626" }
+
+      # 卡片 5：血糖调节
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "05"
+        position: { x: 30mm, y: 35mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "稳定血糖"
+        position: { x: 44mm, y: 35mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "低升糖指数（GI=36）和丰富纤维使糖分缓慢释放。每周吃 5 个以上苹果，2 型糖尿病风险降低 23%。"
+        position: { x: 30mm, y: 45mm, width: 80mm, height: 32mm }
+        style: card_body
+
+      # 卡片 6：抗氧化
+      - type: shape
+        shape: round_rect
+        position: { x: 125mm, y: 32mm, width: 90mm, height: 50mm }
+        style:
+          fill: { color: "#FFFFFF" }
+          shadow: { blur: 6, offset: [0, 2], color: "#00000010" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "06"
+        position: { x: 130mm, y: 35mm, width: 12mm, height: 8mm }
+        style: highlight
+      - type: text
+        content: "延缓衰老"
+        position: { x: 144mm, y: 35mm, width: 50mm, height: 8mm }
+        style: card_title
+      - type: text
+        content: "苹果皮含丰富的多酚和槲皮素，是天然抗氧化剂，能中和自由基，减缓细胞老化。"
+        position: { x: 130mm, y: 45mm, width: 80mm, height: 32mm }
+        style: card_body
+
+      # 科学引用
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 90mm, width: 200mm, height: 48mm }
+        style:
+          fill: { color: "#F8FAFC" }
+          border: { color: "#E2E8F0", width: 1 }
+      - type: text
+        content: "关键研究"
+        position: { x: 35mm, y: 93mm, width: 80mm, height: 7mm }
+        style: card_title
+      - type: text
+        content: "BMJ 2016：每天一个苹果可预防约 8,500 例心血管死亡/年（英国数据）"
+        position: { x: 35mm, y: 102mm, width: 180mm, height: 7mm }
+        style: card_body
+      - type: text
+        content: "Food Chemistry 2019：苹果多酚的抗氧化能力是维生素 C 的 2-6 倍"
+        position: { x: 35mm, y: 110mm, width: 180mm, height: 7mm }
+        style: card_body
+      - type: text
+        content: "PLOS Medicine 2016：每日苹果摄入与全因死亡率降低 35% 相关"
+        position: { x: 35mm, y: 118mm, width: 180mm, height: 7mm }
+        style: card_body
+
+  # ===== 食用建议 =====
+  - layout: blank
+    background: { color: "#FFFFFF" }
+    elements:
+      - type: text
+        content: "科学食用建议"
+        position: { x: 25mm, y: 10mm, width: 200mm, height: 14mm }
+        style: section_title
+      - type: shape
+        shape: rect
+        position: { x: 25mm, y: 24mm, width: 25mm, height: 1.2mm }
+        style:
+          fill: { color: "#DC2626" }
+
+      # 建议 1
+      - type: shape
+        shape: round_rect
+        position: { x: 25mm, y: 32mm, width: 60mm, height: 50mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "最佳时间"
+        position: { x: 25mm, y: 35mm, width: 60mm, height: 8mm }
+        style: card_title
+        extra: { align: center }
+      - type: text
+        content: "上午 10 点或下午 3 点作为加餐，避免空腹或睡前食用"
+        position: { x: 28mm, y: 45mm, width: 54mm, height: 32mm }
+        style: card_body
+
+      # 建议 2
+      - type: shape
+        shape: round_rect
+        position: { x: 95mm, y: 32mm, width: 60mm, height: 50mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "带皮吃"
+        position: { x: 95mm, y: 35mm, width: 60mm, height: 8mm }
+        style: card_title
+        extra: { align: center }
+      - type: text
+        content: "苹果皮含大量多酚和纤维，清洗干净后建议连皮食用"
+        position: { x: 98mm, y: 45mm, width: 54mm, height: 32mm }
+        style: card_body
+
+      # 建议 3
+      - type: shape
+        shape: round_rect
+        position: { x: 165mm, y: 32mm, width: 60mm, height: 50mm }
+        style:
+          fill: { color: "#EFF6FF" }
+          border: { color: "#BFDBFE", width: 1 }
+      - type: text
+        content: "适量原则"
+        position: { x: 165mm, y: 35mm, width: 60mm, height: 8mm }
+        style: card_title
+        extra: { align: center }
+      - type: text
+        content: "每天 1-2 个中等大小苹果即可满足营养需求"
+        position: { x: 168mm, y: 45mm, width: 54mm, height: 32mm }
+        style: card_body
+
+      # 品种推荐
+      - type: text
+        content: "常见品种对比"
+        position: { x: 25mm, y: 90mm, width: 200mm, height: 8mm }
+        style: card_title
+      - type: table
+        position: { x: 25mm, y: 100mm, width: 200mm, height: 38mm }
+        extra:
+          columns:
+            - { header: "品种", width: 20% }
+            - { header: "口感", width: 20% }
+            - { header: "甜度", width: 15% }
+            - { header: "适合场景", width: 45% }
+          data:
+            - ["富士", "脆甜多汁", "高", "直接食用、沙拉"]
+            - ["青苹果", "酸脆清爽", "低", "烘焙、榨汁、控糖人群"]
+            - ["红蛇果", "绵软香甜", "中高", "老人儿童、果泥"]
+
+  # ===== 总结 =====
+  - layout: blank
+    background_board:
+      layers:
+        - type: shape
+          shape: rect
+          position: { x: 0, y: 0, width: 100%, height: 100% }
+          style:
+            fill: { gradient: { type: linear, angle: 135, stops: ["#0F172A", "#1E293B"] } }
+    elements:
+      - type: text
+        content: "每天一个苹果"
+        position: { x: 40mm, y: 35mm, width: 180mm, height: 22mm }
+        style: cover_title
+      - type: text
+        content: "健康从饮食开始"
+        position: { x: 40mm, y: 58mm, width: 180mm, height: 18mm }
+        style: cover_title
+      - type: shape
+        shape: rect
+        position: { x: 40mm, y: 82mm, width: 40mm, height: 1.5mm }
+        style:
+          fill: { color: "#F97316" }
+      - type: text
+        content: "低热量 | 高纤维 | 富含抗氧化物 | 降低慢性病风险"
+        position: { x: 40mm, y: 90mm, width: 180mm, height: 10mm }
+        style: cover_subtitle
+      - type: text
+        content: "An apple a day keeps the doctor away."
+        position: { x: 40mm, y: 108mm, width: 180mm, height: 10mm }
+        style: cover_subtitle
