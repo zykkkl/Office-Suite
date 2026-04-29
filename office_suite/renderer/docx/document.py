@@ -14,6 +14,12 @@ DOCX 能力限制（设计方案第八章）：
   - 不支持艺术字（降级为普通文本）
   - 不支持动画（跳过）
   - 仅支持基础阴影
+
+增强功能：
+  - 段落格式（间距、行距、缩进、对齐）
+  - 列表渲染（有序/无序）
+  - 节分隔符（分页、连续分节）
+  - Word 内置样式（Heading 1-9, List Bullet 等）
 """
 
 from pathlib import Path
@@ -21,8 +27,9 @@ from typing import Any
 
 from docx import Document
 from docx.shared import Pt, Mm, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING, WD_BREAK
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
 
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
@@ -30,11 +37,21 @@ from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
 
 
+# 对齐方式映射
+_ALIGN_MAP = {
+    "left": WD_ALIGN_PARAGRAPH.LEFT,
+    "center": WD_ALIGN_PARAGRAPH.CENTER,
+    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+    "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+}
+
+
 class DOCXRenderer(BaseRenderer):
     """Word 文档渲染器"""
 
     def __init__(self):
         self._doc: Document | None = None
+        self._slide_count: int = 0  # 用于跟踪是否需要分页
 
     @property
     def capability(self) -> RendererCapability:
@@ -43,7 +60,7 @@ class DOCXRenderer(BaseRenderer):
                 NodeType.SLIDE, NodeType.SECTION, NodeType.TEXT,
                 NodeType.IMAGE, NodeType.TABLE, NodeType.GROUP,
             },
-            supported_layout_modes={"absolute"},
+            supported_layout_modes={"absolute", "relative", "grid"},
             supported_text_transforms=set(),  # 不支持艺术字
             supported_animations=set(),       # 不支持动画
             supported_effects={"shadow"},     # 仅基础阴影
@@ -65,6 +82,7 @@ class DOCXRenderer(BaseRenderer):
             print(f"[IR {issue.severity.value.upper()}] {issue}")
 
         self._doc = Document()
+        self._slide_count = len(doc.children)
 
         # 设置默认字体
         style = self._doc.styles["Normal"]
@@ -72,22 +90,45 @@ class DOCXRenderer(BaseRenderer):
         style.font.size = Pt(11)
 
         # 遍历节/幻灯片
-        for node in doc.children:
+        for i, node in enumerate(doc.children):
+            is_last = (i == len(doc.children) - 1)
             if node.node_type == NodeType.SECTION:
-                self._render_section(node, doc)
+                self._render_section(node, doc, add_break=not is_last)
             elif node.node_type == NodeType.SLIDE:
-                # SLIDE 在 DOCX 中作为节处理
-                self._render_slide_as_section(node, doc)
+                self._render_slide_as_section(node, doc, add_break=not is_last)
 
         self._doc.save(str(output_path))
         return output_path
 
-    def _render_section(self, node: IRNode, doc: IRDocument):
-        """渲染 SECTION 节点"""
+    def _render_section(self, node: IRNode, doc: IRDocument, add_break: bool = False):
+        """渲染 SECTION 节点
+
+        支持 section_break 属性：
+          - "continuous": 连续分节（同页）
+          - "new_page" / "next_page": 新页分节
+          - "even_page": 偶数页分节
+          - "odd_page": 奇数页分节
+        """
+        # 节属性
+        section_break = node.extra.get("section_break", "")
+        page_size = node.extra.get("page_size", "")
+        orientation = node.extra.get("orientation", "")
+
+        # 设置节属性
+        if page_size or orientation:
+            self._apply_section_properties(page_size, orientation)
+
+        # 渲染子元素
         for child in node.children:
             self._render_element(child, doc)
 
-    def _render_slide_as_section(self, node: IRNode, doc: IRDocument):
+        # 节分隔
+        if section_break:
+            self._add_section_break(section_break)
+        elif add_break:
+            self._add_page_break()
+
+    def _render_slide_as_section(self, node: IRNode, doc: IRDocument, add_break: bool = False):
         """将 SLIDE 节点作为文档节渲染
 
         每张幻灯片映射为一个文档节（段落集合）。
@@ -95,8 +136,50 @@ class DOCXRenderer(BaseRenderer):
         for child in node.children:
             self._render_element(child, doc)
 
-        # 节之间加分页符（除最后一个）
-        # 在实际场景中由用户控制
+        # 节之间加分页符
+        if add_break:
+            self._add_page_break()
+
+    def _add_page_break(self):
+        """添加分页符"""
+        para = self._doc.add_paragraph()
+        run = para.add_run()
+        run.add_break(WD_BREAK.PAGE)
+
+    def _add_section_break(self, break_type: str):
+        """添加分节符"""
+        from docx.enum.section import WD_SECTION_START
+        break_map = {
+            "continuous": WD_SECTION_START.CONTINUOUS,
+            "new_page": WD_SECTION_START.NEW_PAGE,
+            "next_page": WD_SECTION_START.NEW_PAGE,
+            "even_page": WD_SECTION_START.EVEN_PAGE,
+            "odd_page": WD_SECTION_START.ODD_PAGE,
+        }
+        section_start = break_map.get(break_type, WD_SECTION_START.NEW_PAGE)
+        new_section = self._doc.add_section(section_start)
+        return new_section
+
+    def _apply_section_properties(self, page_size: str, orientation: str):
+        """应用节属性（页面大小、方向）"""
+        section = self._doc.sections[-1]
+        # 页面大小
+        size_map = {
+            "a4": (Mm(210), Mm(297)),
+            "a3": (Mm(297), Mm(420)),
+            "letter": (Inches(8.5), Inches(11)),
+            "legal": (Inches(8.5), Inches(14)),
+        }
+        if page_size in size_map:
+            w, h = size_map[page_size]
+            section.page_width = w
+            section.page_height = h
+
+        # 方向
+        if orientation == "landscape":
+            section.orientation = WD_ORIENT.LANDSCAPE
+        elif orientation == "portrait":
+            section.orientation = WD_ORIENT.PORTRAIT
 
     def _render_element(self, node: IRNode, doc: IRDocument):
         """按节点类型分派渲染"""
@@ -118,10 +201,10 @@ class DOCXRenderer(BaseRenderer):
     def _render_text(self, node: IRNode, doc: IRDocument):
         """渲染文本元素
 
-        根据 font_size 判断是否为标题：
-          >= 28pt → Heading 1
-          >= 20pt → Heading 2
-          其他    → 普通段落
+        支持：
+        - 标题级别（extra.heading_level 或 font_size 推断）
+        - 列表项（extra.list_type: "bullet" / "numbered"）
+        - 段落格式（对齐、间距、行距、缩进）
         """
         style = node.style
         content = node.content or ""
@@ -129,25 +212,106 @@ class DOCXRenderer(BaseRenderer):
         if not content.strip():
             return
 
-        # 判断标题级别
-        font_size = style.font_size if style and style.font_size else 11
-        if font_size >= 28:
-            heading = self._doc.add_heading(content, level=1)
-            self._apply_heading_style(heading, style)
-        elif font_size >= 20:
-            heading = self._doc.add_heading(content, level=2)
+        # 列表渲染
+        list_type = node.extra.get("list_type", "")
+        if list_type:
+            self._render_list_item(node, content, style, list_type)
+            return
+
+        # 标题级别
+        heading_level = node.extra.get("heading_level", 0)
+        if not heading_level:
+            heading_level = self._infer_heading_level(style)
+
+        if 1 <= heading_level <= 9:
+            heading = self._doc.add_heading(content, level=heading_level)
             self._apply_heading_style(heading, style)
         else:
             para = self._doc.add_paragraph(content)
             self._apply_paragraph_style(para, style)
+            self._apply_paragraph_format(para, node)
+
+    def _render_list_item(self, node: IRNode, content: str, style: IRStyle | None, list_type: str):
+        """渲染列表项
+
+        list_type: "bullet" → 无序列表, "numbered" → 有序列表
+        """
+        # 使用 Word 内置列表样式
+        if list_type == "numbered":
+            para = self._doc.add_paragraph(content, style="List Number")
+        else:
+            para = self._doc.add_paragraph(content, style="List Bullet")
+
+        self._apply_paragraph_style(para, style)
+
+    def _infer_heading_level(self, style: IRStyle | None) -> int:
+        """根据 font_size 推断标题级别"""
+        if style is None or style.font_size is None:
+            return 0
+        fs = style.font_size
+        if fs >= 36:
+            return 1
+        if fs >= 28:
+            return 2
+        if fs >= 22:
+            return 3
+        if fs >= 18:
+            return 4
+        return 0
+
+    def _apply_paragraph_format(self, para, node: IRNode):
+        """应用段落格式：对齐、间距、行距、缩进"""
+        extra = node.extra
+        pf = para.paragraph_format
+
+        # 对齐
+        align = extra.get("align", "")
+        if align in _ALIGN_MAP:
+            pf.alignment = _ALIGN_MAP[align]
+
+        # 段前间距（pt）
+        space_before = extra.get("space_before")
+        if space_before is not None:
+            pf.space_before = Pt(float(space_before))
+
+        # 段后间距（pt）
+        space_after = extra.get("space_after")
+        if space_after is not None:
+            pf.space_after = Pt(float(space_after))
+
+        # 行距
+        line_spacing = extra.get("line_spacing")
+        if line_spacing is not None:
+            pf.line_spacing = float(line_spacing)
+            pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+
+        # 固定行距（pt）
+        line_spacing_pt = extra.get("line_spacing_pt")
+        if line_spacing_pt is not None:
+            pf.line_spacing = Pt(float(line_spacing_pt))
+            pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+
+        # 左缩进
+        left_indent = extra.get("left_indent")
+        if left_indent is not None:
+            pf.left_indent = Mm(float(left_indent))
+
+        # 首行缩进
+        first_line_indent = extra.get("first_line_indent")
+        if first_line_indent is not None:
+            pf.first_line_indent = Mm(float(first_line_indent))
 
     def _render_table(self, node: IRNode, doc: IRDocument):
-        """渲染表格元素"""
+        """渲染表格元素
+
+        支持 extra 中的 table_style 属性覆盖默认样式。
+        """
         rows = node.extra.get("rows", 3)
         cols = node.extra.get("cols", 3)
         data = node.extra.get("data", [])
+        table_style = node.extra.get("table_style", "Table Grid")
 
-        table = self._doc.add_table(rows=rows, cols=cols, style="Table Grid")
+        table = self._doc.add_table(rows=rows, cols=cols, style=table_style)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
         # 填充数据
@@ -195,7 +359,7 @@ class DOCXRenderer(BaseRenderer):
         self._apply_paragraph_style(para, style)
 
     def _apply_paragraph_style(self, para, style: IRStyle | None):
-        """应用段落样式"""
+        """应用段落样式（run 级别：字体、大小、粗体、斜体、颜色）"""
         if style is None:
             return
         for run in para.runs:
@@ -217,6 +381,8 @@ class DOCXRenderer(BaseRenderer):
         for run in heading.runs:
             if style.font_color:
                 run.font.color.rgb = self._hex_to_rgb(style.font_color)
+            if style.font_size:
+                run.font.size = Pt(style.font_size)
 
     @staticmethod
     def _hex_to_rgb(hex_str: str) -> RGBColor:

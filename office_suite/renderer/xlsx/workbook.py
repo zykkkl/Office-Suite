@@ -13,8 +13,11 @@
 
 XLSX 能力：
   - Sheet/数据写入
-  - 图表（bar/column/line/pie）
+  - 图表（bar/column/line/pie/scatter）
+  - 单元格合并
+  - 数字格式
   - 条件格式
+  - 冻结窗格
   - 样式（字体/填充/边框）
 """
 
@@ -22,8 +25,10 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
+from openpyxl.chart.label import DataLabelList
+from openpyxl.formatting.rule import DataBarRule, ColorScaleRule, CellIsRule
 from openpyxl.utils import get_column_letter
 
 from ...ir.types import IRDocument, IRNode, IRStyle, NodeType
@@ -36,6 +41,20 @@ CHART_CLASS_MAP = {
     "column": BarChart,
     "line": LineChart,
     "pie": PieChart,
+    "scatter": ScatterChart,
+}
+
+# 数字格式映射
+NUMBER_FORMAT_MAP = {
+    "currency": '#,##0.00 "¥"',
+    "currency_usd": '"$"#,##0.00',
+    "percent": "0.00%",
+    "date": "YYYY-MM-DD",
+    "datetime": "YYYY-MM-DD HH:MM:SS",
+    "integer": "#,##0",
+    "decimal_2": "#,##0.00",
+    "decimal_4": "#,##0.0000",
+    "scientific": "0.00E+00",
 }
 
 
@@ -44,6 +63,7 @@ class XLSXRenderer(BaseRenderer):
 
     def __init__(self):
         self._wb: Workbook | None = None
+        self._current_row: int = 1
 
     @property
     def capability(self) -> RendererCapability:
@@ -82,6 +102,14 @@ class XLSXRenderer(BaseRenderer):
             self._current_row = 1
             self._render_node_to_sheet(node, ws, doc)
 
+            # 冻结窗格
+            freeze_row = node.extra.get("freeze_row")
+            freeze_col = node.extra.get("freeze_col")
+            if freeze_row or freeze_col:
+                row_num = freeze_row or 1
+                col_letter = get_column_letter(freeze_col) if freeze_col else "A"
+                ws.freeze_panes = f"{col_letter}{row_num}"
+
         self._wb.save(str(output_path))
         return output_path
 
@@ -109,19 +137,34 @@ class XLSXRenderer(BaseRenderer):
             self._current_row += 1
 
     def _render_text(self, node: IRNode, ws):
-        """渲染文本 → 写入单元格"""
-        cell = ws.cell(row=self._current_row, column=1, value=node.content or "")
+        """渲染文本 → 写入单元格
+
+        支持 extra.column 指定列号。
+        """
+        col = node.extra.get("column", 1)
+        cell = ws.cell(row=self._current_row, column=col, value=node.content or "")
         self._apply_cell_style(cell, node.style)
+        # 数字格式
+        number_format = node.extra.get("number_format", "")
+        if number_format:
+            cell.number_format = NUMBER_FORMAT_MAP.get(number_format, number_format)
         self._current_row += 1
 
     def _render_table(self, node: IRNode, ws):
         """渲染表格 → 写入数据区域
 
-        从当前行开始写入，支持表头样式和数据区域。
+        支持：
+        - 表头样式和斑马纹
+        - 单元格合并（extra.merge_cells）
+        - 数字格式（extra.number_format）
+        - 条件格式（extra.conditional_format）
         """
         data = node.extra.get("data", [])
         rows = node.extra.get("rows", len(data))
         cols = node.extra.get("cols", len(data[0]) if data else 0)
+        number_format = node.extra.get("number_format", "")
+        merge_cells = node.extra.get("merge_cells", [])
+        conditional_format = node.extra.get("conditional_format", "")
 
         start_row = self._current_row
 
@@ -147,6 +190,28 @@ class XLSXRenderer(BaseRenderer):
                         bottom=Side(style="thin", color="E2E8F0"),
                     )
 
+                    # 数字格式
+                    if number_format and r > 0:  # 跳过表头
+                        cell.number_format = NUMBER_FORMAT_MAP.get(number_format, number_format)
+
+        # 单元格合并
+        for merge_spec in merge_cells:
+            # merge_spec: "A1:B2" 或 [start_row, start_col, end_row, end_col]
+            if isinstance(merge_spec, str):
+                ws.merge_cells(merge_spec)
+            elif isinstance(merge_spec, list) and len(merge_spec) == 4:
+                sr, sc, er, ec = merge_spec
+                ws.merge_cells(
+                    start_row=start_row + sr,
+                    start_column=sc,
+                    end_row=start_row + er,
+                    end_column=ec,
+                )
+
+        # 条件格式
+        if conditional_format and cols > 0:
+            self._apply_conditional_format(ws, start_row, rows, cols, conditional_format)
+
         # 自动列宽
         for c in range(cols):
             col_letter = get_column_letter(c + 1)
@@ -158,18 +223,56 @@ class XLSXRenderer(BaseRenderer):
 
         self._current_row = start_row + rows + 1  # 空一行
 
+    def _apply_conditional_format(self, ws, start_row: int, rows: int, cols: int, fmt_type: str):
+        """应用条件格式
+
+        fmt_type:
+          - "data_bar": 数据条
+          - "color_scale": 色阶（红-黄-绿）
+          - "greater_than": 大于平均值高亮
+        """
+        # 条件格式应用到数据区域（跳过表头）
+        if rows <= 1:
+            return
+        data_range = f"{get_column_letter(1)}{start_row + 1}:{get_column_letter(cols)}{start_row + rows - 1}"
+
+        if fmt_type == "data_bar":
+            rule = DataBarRule(
+                start_type="min",
+                end_type="max",
+                color="638EC6",
+            )
+            ws.conditional_formatting.add(data_range, rule)
+        elif fmt_type == "color_scale":
+            rule = ColorScaleRule(
+                start_type="min", start_color="F8696B",
+                mid_type="percentile", mid_value=50, mid_color="FFEB84",
+                end_type="max", end_color="63BE7B",
+            )
+            ws.conditional_formatting.add(data_range, rule)
+        elif fmt_type == "greater_than":
+            rule = CellIsRule(
+                operator="greaterThan",
+                formula=[f"AVERAGE({data_range})"],
+                fill=PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid"),
+            )
+            ws.conditional_formatting.add(data_range, rule)
+
     def _render_chart(self, node: IRNode, ws):
         """渲染图表 → 在 Sheet 中嵌入图表
 
-        数据写入隐藏区域，图表引用该区域。
+        支持图表类型：bar, column, line, pie, scatter
+        支持数据标签、图例位置。
         """
         chart_type_str = node.chart_type or node.extra.get("chart_type", "bar")
         categories = node.extra.get("categories", [])
         series_list = node.extra.get("series", [])
         title = node.extra.get("title", "")
+        show_legend = node.extra.get("show_legend", True)
+        show_data_labels = node.extra.get("show_data_labels", False)
 
         if not series_list:
-            ws.cell(row=self._current_row, column=1, value=f"[图表: 无数据]")
+            ws.cell(row=self._current_row, column=1, value="[图表: 无数据]")
             self._current_row += 1
             return
 
@@ -195,7 +298,7 @@ class XLSXRenderer(BaseRenderer):
         chart.title = title
         chart.style = 10
         # PieChart 没有 axis 属性
-        if not isinstance(chart, PieChart):
+        if not isinstance(chart, (PieChart, ScatterChart)):
             chart.y_axis.title = ""
             chart.x_axis.title = ""
 
@@ -209,7 +312,26 @@ class XLSXRenderer(BaseRenderer):
                 max_row=data_start_row + data_rows,
             )
             chart.add_data(data_ref, titles_from_data=True)
-        chart.set_categories(cats_ref)
+
+        # ScatterChart 使用 xvalues 而非 categories
+        if chart_type_str == "scatter":
+            # scatter: categories 作为 X，每个系列作为 Y
+            if chart.series:
+                x_ref = Reference(ws, min_col=1, min_row=data_start_row + 1, max_row=data_start_row + data_rows)
+                for s in chart.series:
+                    s.xvalues = x_ref
+        else:
+            chart.set_categories(cats_ref)
+
+        # 数据标签
+        if show_data_labels:
+            for s in chart.series:
+                s.dLbls = DataLabelList()
+                s.dLbls.showVal = True
+
+        # 图例
+        if not show_legend:
+            chart.legend = None
 
         # 图表尺寸
         chart.width = 20
@@ -220,7 +342,10 @@ class XLSXRenderer(BaseRenderer):
         self._current_row += data_rows + 18  # 图表占位
 
     def _apply_cell_style(self, cell, style: IRStyle | None):
-        """应用单元格样式"""
+        """应用单元格样式
+
+        支持：字体大小、粗体、斜体、颜色、填充色、对齐
+        """
         if style is None:
             return
         font_kwargs = {}
@@ -228,7 +353,29 @@ class XLSXRenderer(BaseRenderer):
             font_kwargs["size"] = style.font_size
         if style.font_weight and style.font_weight >= 700:
             font_kwargs["bold"] = True
+        if style.font_italic:
+            font_kwargs["italic"] = True
         if style.font_color:
             font_kwargs["color"] = style.font_color.lstrip("#")
         if font_kwargs:
             cell.font = Font(**font_kwargs)
+
+        # 填充色
+        if style.fill_color:
+            cell.fill = PatternFill(
+                start_color=style.fill_color.lstrip("#"),
+                end_color=style.fill_color.lstrip("#"),
+                fill_type="solid",
+            )
+
+        # 边框
+        if style.border:
+            border_color = style.border.get("color", "000000").lstrip("#")
+            border_width = style.border.get("width", 1)
+            side_style = "medium" if border_width >= 2 else "thin"
+            cell.border = Border(
+                left=Side(style=side_style, color=border_color),
+                right=Side(style=side_style, color=border_color),
+                top=Side(style=side_style, color=border_color),
+                bottom=Side(style=side_style, color=border_color),
+            )

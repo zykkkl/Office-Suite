@@ -28,7 +28,7 @@ from ..dsl.schema import (
     Slide,
     StyleSpec,
 )
-from .cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
 from .types import (
     IRAnimation,
     IRDocument,

@@ -38,6 +38,7 @@ from pptx.chart.data import CategoryChartData
 from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
+from ..layout_resolver import LayoutResolver, detect_layout_mode
 from .animation import apply_animations
 
 # mm → EMU
@@ -86,7 +87,7 @@ class PPTXRenderer(BaseRenderer):
                 NodeType.SHAPE, NodeType.TABLE, NodeType.CHART,
                 NodeType.GROUP, NodeType.VIDEO,
             },
-            supported_layout_modes={"absolute", "relative"},
+            supported_layout_modes={"absolute", "relative", "grid", "flex", "constraint"},
             supported_text_transforms={"arch", "arch_up", "wave", "circle"},
             supported_animations={"slide_up", "fade_in", "scale_in", "fly_in"},
             supported_effects={"shadow", "glow", "gradient_fill", "opacity"},
@@ -151,8 +152,20 @@ class PPTXRenderer(BaseRenderer):
         if bg_data:
             self._set_background(slide, bg_data)
 
+        # 布局解析：grid/flex/constraint 模式下预计算所有子元素位置
+        layout_mode = detect_layout_mode(slide_node)
+        resolved_positions: dict[str, IRPosition] = {}
+        if layout_mode != "absolute":
+            resolver = LayoutResolver(SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM)
+            resolved_positions = resolver.resolve_children(slide_node)
+
         # 渲染元素
-        for elem_node in slide_node.children:
+        for i, elem_node in enumerate(slide_node.children):
+            # 将解析后的位置注入元素（仅当元素没有显式位置时）
+            if resolved_positions:
+                key = elem_node.id or str(i)
+                if key in resolved_positions and not elem_node.position:
+                    elem_node.position = resolved_positions[key]
             self._render_element(slide, elem_node, doc)
 
     def _get_layout_index(self, name: str) -> int:
@@ -737,24 +750,28 @@ class PPTXRenderer(BaseRenderer):
         return val
 
     def _apply_text_style(self, paragraph, style: IRStyle):
-        """应用文本样式到段落"""
-        font = paragraph.font
+        """应用文本样式到段落中的每个 run
+
+        设置在 run.font 上（而非 paragraph.font），确保所有 PowerPoint 版本正确渲染。
+        """
         family = self._style_val(style, "font_family")
         size = self._style_val(style, "font_size")
         weight = self._style_val(style, "font_weight")
         italic = self._style_val(style, "font_italic")
         color = self._style_val(style, "font_color")
 
-        if family:
-            font.name = family
-        if size:
-            font.size = Pt(size)
-        if weight:
-            font.bold = weight >= 700
-        if italic is not None:
-            font.italic = italic
-        if color:
-            font.color.rgb = self._hex_to_rgb(color)
+        for run in paragraph.runs:
+            font = run.font
+            if family:
+                font.name = family
+            if size:
+                font.size = Pt(size)
+            if weight:
+                font.bold = weight >= 700
+            if italic is not None:
+                font.italic = italic
+            if color:
+                font.color.rgb = self._hex_to_rgb(color)
 
     def _apply_text_layout(self, text_frame, paragraph, node: IRNode):
         """Apply text box layout options carried in node.extra.

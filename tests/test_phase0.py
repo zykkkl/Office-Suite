@@ -92,8 +92,6 @@ def test_phase0():
     print("Phase 0 验证完成!")
     print("=" * 60)
 
-    return result
-
 
 if __name__ == "__main__":
     test_phase0()
