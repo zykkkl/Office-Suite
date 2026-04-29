@@ -29,6 +29,7 @@ from ..dsl.schema import (
     StyleSpec,
 )
 from ..engine.style.cascade import cascade_style, cascade_style_by_name, DEFAULT_THEME_STYLES
+from ..engine.style.color import OKLCH, oklch_to_hex
 from .types import (
     IRAnimation,
     IRDocument,
@@ -107,6 +108,29 @@ def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h
 # 样式编译
 # ============================================================
 
+import re
+
+_OKLCH_RE = re.compile(
+    r"oklch\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _resolve_color(value: str | None) -> str | None:
+    """解析颜色值，支持 HEX 和 oklch(l, c, h) 格式
+
+    oklch 格式示例: oklch(0.7, 0.15, 30)
+    l: 0-1 亮度, c: 0-0.4 饱和度, h: 0-360 色相
+    """
+    if not value:
+        return value
+    m = _OKLCH_RE.match(value.strip())
+    if m:
+        l, c, h = float(m.group(1)), float(m.group(2)), float(m.group(3))
+        return oklch_to_hex(OKLCH(l=l, c=c, h=h))
+    return value
+
+
 def compile_style(style: StyleSpec | None) -> IRStyle | None:
     """将 DSL StyleSpec 编译为 IRStyle"""
     if style is None:
@@ -118,16 +142,16 @@ def compile_style(style: StyleSpec | None) -> IRStyle | None:
         ir.font_size = style.font.size
         ir.font_weight = style.font.weight
         ir.font_italic = style.font.italic
-        ir.font_color = style.font.color
+        ir.font_color = _resolve_color(style.font.color)
     if style.fill:
-        ir.fill_color = style.fill.color
+        ir.fill_color = _resolve_color(style.fill.color)
         ir.fill_gradient = _gradient_to_dict(style.fill.gradient) if style.fill.gradient else None
         ir.fill_opacity = style.fill.opacity
     if style.shadow:
         ir.shadow = {
             "blur": style.shadow.blur,
             "offset": style.shadow.offset,
-            "color": style.shadow.color,
+            "color": _resolve_color(style.shadow.color),
         }
     if style.border:
         ir.border = style.border
@@ -140,7 +164,7 @@ def _gradient_to_dict(grad) -> dict[str, Any]:
     return {
         "type": grad.type,
         "angle": grad.angle,
-        "stops": grad.stops,
+        "stops": [_resolve_color(s) for s in grad.stops],
     }
 
 

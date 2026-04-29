@@ -124,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         run_lint=not args.no_lint,
     )
+    import sys
+    if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(result.summary())
     return 0 if result.is_valid else 1
 

@@ -103,12 +103,22 @@ class LayoutSpec:
     grid: GridPosition | None = None
     flex: FlexPosition | None = None
 
-    def resolve_mm(self, container_width: float, container_height: float) -> AbsolutePosition:
+    def resolve_mm(
+        self,
+        container_width: float,
+        container_height: float,
+        row_height: float | None = None,
+        flex_items: list | None = None,
+        flex_index: int = 0,
+    ) -> AbsolutePosition:
         """将任意布局模式解析为绝对坐标（mm）
 
         Args:
             container_width: 容器宽度（mm）
             container_height: 容器高度（mm）
+            row_height: 栅格行高（mm），仅 GRID 模式使用。默认为列宽。
+            flex_items: FlexItem 列表，仅 FLEX 模式使用。提供时按多 item 解析。
+            flex_index: 当前 item 在 flex_items 中的索引。
 
         Returns:
             AbsolutePosition（mm）
@@ -126,14 +136,34 @@ class LayoutSpec:
 
         if self.mode == LayoutMode.GRID and self.grid:
             col_width = container_width / self.grid.columns
+            rh = row_height if row_height is not None else col_width
             return AbsolutePosition(
                 x=(self.grid.column - 1) * col_width,
-                y=(self.grid.row - 1) * col_width,
+                y=(self.grid.row - 1) * rh,
                 width=self.grid.column_span * col_width,
-                height=self.grid.row_span * col_width,
+                height=self.grid.row_span * rh,
             )
 
-        # FLEX 和 fallback 返回默认
+        if self.mode == LayoutMode.FLEX and self.flex:
+            from ..engine.layout.flex import FlexLayout, FlexItem as FItem
+            engine = FlexLayout(container_width, container_height)
+            if flex_items:
+                # 多 item 模式：用传入的兄弟列表
+                items = flex_items
+            else:
+                # 单 item fallback
+                items = [FItem(width=container_width, height=container_height)]
+                flex_index = 0
+            positions = engine.resolve(self.flex, items)
+            if flex_index < len(positions) and positions[flex_index] is not None:
+                ap = positions[flex_index]
+                return AbsolutePosition(
+                    x=ap.x,
+                    y=ap.y,
+                    width=ap.width,
+                    height=ap.height,
+                )
+
         return AbsolutePosition()
 
 
