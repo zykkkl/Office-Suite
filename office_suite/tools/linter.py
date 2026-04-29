@@ -13,6 +13,7 @@
 """
 
 from dataclasses import dataclass, field
+import re
 from typing import Any
 
 from ..ir.types import IRDocument, IRNode, NodeType
@@ -229,6 +230,116 @@ def _check_spacing(nodes: list[IRNode], report: LintReport):
                     suggestion="建议间距 >= 5mm"))
 
 
+def _same_bounds(a: IRNode, b: IRNode, tolerance_mm: float = 1.0) -> bool:
+    if not a.position or not b.position:
+        return False
+    return (
+        abs(_pos_attr(a.position, "x") - _pos_attr(b.position, "x")) <= tolerance_mm
+        and abs(_pos_attr(a.position, "y") - _pos_attr(b.position, "y")) <= tolerance_mm
+        and abs(_pos_attr(a.position, "width") - _pos_attr(b.position, "width")) <= tolerance_mm
+        and abs(_pos_attr(a.position, "height") - _pos_attr(b.position, "height")) <= tolerance_mm
+    )
+
+
+def _contains_bounds(container: IRNode, child: IRNode) -> bool:
+    if not container.position or not child.position:
+        return False
+    cx, cy = _pos_attr(container.position, "x"), _pos_attr(container.position, "y")
+    cw, ch = _pos_attr(container.position, "width"), _pos_attr(container.position, "height")
+    tx, ty = _pos_attr(child.position, "x"), _pos_attr(child.position, "y")
+    tw, th = _pos_attr(child.position, "width"), _pos_attr(child.position, "height")
+    return tx >= cx and ty >= cy and tx + tw <= cx + cw and ty + th <= cy + ch
+
+
+def _check_centered_shape_labels(nodes: list[IRNode], report: LintReport):
+    """Centered text inside round badges should use the full shape bounds."""
+    round_shapes = [
+        node for node in nodes
+        if _node_type(node) == NodeType.SHAPE
+        and node.position
+        and str(node.extra.get("shape_type", "")).lower() in {"circle", "ellipse", "oval"}
+    ]
+    centered_texts = [
+        node for node in nodes
+        if _node_type(node) == NodeType.TEXT
+        and node.position
+        and str(node.extra.get("align", node.extra.get("text_align", ""))).lower() == "center"
+        and str(node.extra.get(
+            "vertical_align",
+            node.extra.get("verticalAlign", node.extra.get("valign", "")),
+        )).lower() in {"middle", "center"}
+    ]
+
+    for shape in round_shapes:
+        for text in centered_texts:
+            if _contains_bounds(shape, text) and not _same_bounds(shape, text):
+                report.issues.append(LintIssue(
+                    LintSeverity.WARNING,
+                    "centered_shape_label",
+                    f"'{_node_label(text)}' is centered inside a round shape but does not use the full shape bounds",
+                    suggestion="Set the text position equal to the circle/ellipse position and use align:center, vertical_align:middle, margin:0",
+                ))
+
+
+def _check_sequence_completeness(nodes: list[IRNode], report: LintReport):
+    """Warn when an obvious numeric text sequence has missing middle items."""
+    numeric_values: list[int] = []
+    day_values: list[int] = []
+
+    for node in nodes:
+        if _node_type(node) != NodeType.TEXT:
+            continue
+        content = str(getattr(node, "content", "") or "").strip()
+        if re.fullmatch(r"\d{1,2}", content):
+            numeric_values.append(int(content))
+            continue
+        match = re.match(r"^[Dd](\d{1,2})(?:\s|\\n|$)", content)
+        if match:
+            day_values.append(int(match.group(1)))
+
+    for rule, values, label in (
+        ("number_sequence", numeric_values, "numbered sequence"),
+        ("day_sequence", day_values, "day sequence"),
+    ):
+        if len(values) < 2:
+            continue
+        unique_values = sorted(set(values))
+        expected = set(range(unique_values[0], unique_values[-1] + 1))
+        missing = sorted(expected - set(unique_values))
+        if missing:
+            report.issues.append(LintIssue(
+                LintSeverity.WARNING,
+                rule,
+                f"Missing {label} item(s): {', '.join(str(v) for v in missing)}",
+                suggestion="Keep visible numbered steps/cards continuous unless the gap is intentional.",
+            ))
+
+
+def _check_page_marker_layout(nodes: list[IRNode], report: LintReport):
+    """Page markers such as 02 / 10 must be wide enough and non-wrapping."""
+    for node in nodes:
+        if _node_type(node) != NodeType.TEXT or not node.position:
+            continue
+        content = str(getattr(node, "content", "") or "").strip()
+        if not re.fullmatch(r"\d{1,2}\s*/\s*\d{1,2}", content):
+            continue
+
+        width = _pos_attr(node.position, "width")
+        wrap_value = node.extra.get("wrap", node.extra.get("word_wrap", True))
+        wrap_disabled = (
+            wrap_value is False
+            or (isinstance(wrap_value, str) and wrap_value.lower() in {"false", "no", "0", "nowrap", "none"})
+        )
+        align = str(node.extra.get("align", node.extra.get("text_align", ""))).lower()
+        if width < 30 or not wrap_disabled or align != "right":
+            report.issues.append(LintIssue(
+                LintSeverity.WARNING,
+                "page_marker_layout",
+                f"Page marker '{content}' may wrap or drift because its box is narrow or not right-aligned",
+                suggestion="Use width >= 30mm, align:right, vertical_align:middle, margin:0, and wrap:false.",
+            ))
+
+
 def lint_ir(ir_doc: IRDocument) -> LintReport:
     """对 IR 文档执行设计规范检查
 
@@ -254,6 +365,9 @@ def lint_ir(ir_doc: IRDocument) -> LintReport:
     for slide in slides:
         _check_overlap(slide.children, report)
         _check_spacing(slide.children, report)
+        _check_centered_shape_labels(slide.children, report)
+        _check_sequence_completeness(slide.children, report)
+        _check_page_marker_layout(slide.children, report)
 
     # 计算评分
     for issue in report.issues:

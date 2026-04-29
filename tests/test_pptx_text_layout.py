@@ -46,3 +46,37 @@ slides:
     assert text_frame.margin_right == 0
     assert text_frame.margin_top == 0
     assert text_frame.margin_bottom == 0
+
+
+def test_pptx_text_wrap_false_field():
+    dsl = """
+version: "4.0"
+type: presentation
+theme: default
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "02 / 10"
+        position: { x: 196mm, y: 126mm, width: 38mm, height: 8mm }
+        align: right
+        vertical_align: middle
+        margin: 0
+        wrap: false
+        style:
+          font: { family: "Arial", size: 13, color: "#1D2939" }
+"""
+    out = Path(__file__).parent / "output" / "text_wrap_false.pptx"
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+
+    PPTXRenderer().render(ir, out)
+
+    prs = Presentation(out)
+    shape = next(s for s in prs.slides[0].shapes if s.has_text_frame and s.text.strip() == "02 / 10")
+    text_frame = shape.text_frame
+    paragraph = text_frame.paragraphs[0]
+
+    assert paragraph.alignment == PP_ALIGN.RIGHT
+    assert text_frame.vertical_anchor == MSO_ANCHOR.MIDDLE
+    assert text_frame.word_wrap is False

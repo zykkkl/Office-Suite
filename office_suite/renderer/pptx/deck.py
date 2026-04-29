@@ -221,7 +221,7 @@ class PPTXRenderer(BaseRenderer):
 
         txBox = slide.shapes.add_textbox(left, top, width, height)
         tf = txBox.text_frame
-        tf.word_wrap = True
+        tf.word_wrap = not self._is_wrap_disabled(node)
 
         p = tf.paragraphs[0]
         p.text = node.content or ""
@@ -266,7 +266,7 @@ class PPTXRenderer(BaseRenderer):
         # 形状内文本
         if node.content:
             tf = shape.text_frame
-            tf.word_wrap = True
+            tf.word_wrap = not self._is_wrap_disabled(node)
             p = tf.paragraphs[0]
             p.text = node.content
             self._apply_text_layout(tf, p, node)
@@ -804,6 +804,13 @@ class PPTXRenderer(BaseRenderer):
                 text_frame.margin_top = Mm(float(node.extra["margin_top"]))
             if "margin_bottom" in node.extra:
                 text_frame.margin_bottom = Mm(float(node.extra["margin_bottom"]))
+
+    @staticmethod
+    def _is_wrap_disabled(node: IRNode) -> bool:
+        value = node.extra.get("wrap", node.extra.get("word_wrap", True))
+        if isinstance(value, str):
+            return value.lower() in {"false", "no", "0", "nowrap", "none"}
+        return value is False
 
     def _apply_text_warp(self, shape, text_effect: dict[str, Any]):
         """应用 WordArt 文本变换

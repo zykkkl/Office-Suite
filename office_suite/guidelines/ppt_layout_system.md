@@ -30,6 +30,7 @@ Required constraints:
 - `y + height <= 142.875mm`
 - Keep recurring page numbers, footers, and navigation in stable positions.
 - Use a page grid before placing content. Recommended default margins are `20mm` left/right and `13mm` top.
+- Page markers such as `02 / 10` must use a wide, right-aligned text box. Recommended footer marker: `x: 196mm`, `y: 126mm`, `width: 38mm`, `height: 8mm`, `align: right`, `vertical_align: middle`, `margin: 0`, `wrap: false`.
 
 ## 3. Page Regions
 
@@ -72,6 +73,8 @@ Use explicit internal layout fields for:
 - Short labels inside shapes.
 - Button-like or tab-like text.
 
+For centered text inside a shape, the text box should usually match the full shape bounds. Do not shrink a text box and hand-position it inside a circle, badge, or card to simulate centering. Use full bounds plus `align: center`, `vertical_align: middle`, and `margin: 0`.
+
 Canonical centered badge:
 
 ```yaml
@@ -105,6 +108,7 @@ Repeated elements must be generated as a system:
 - Consistent title and description positions.
 - Same page-level baseline.
 - Shared styling, with only deliberate variation.
+- Complete sequences. If the outline says six modules, seven days, or five steps, the rendered page must contain exactly those items unless the design document records a deliberate omission.
 
 For repeated card groups, define the card grid first:
 
