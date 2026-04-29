@@ -138,6 +138,8 @@ class Slide:
     """幻灯片 / 节"""
     layout: str = "blank"
     background: dict[str, Any] | None = None
+    background_board: dict[str, Any] | None = None
+    layers: dict[str, list[Element]] = field(default_factory=dict)
     elements: list[Element] = field(default_factory=list)
     transition: dict[str, Any] | None = None
 

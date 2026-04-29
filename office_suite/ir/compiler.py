@@ -241,6 +241,70 @@ TYPE_MAP = {
     "code": NodeType.CODE,
 }
 
+LAYER_ORDER = {
+    "background": 0,
+    "illustration": 10,
+    "scrim": 20,
+    "content": 30,
+    "foreground": 40,
+    "overlay": 50,
+}
+
+
+def _with_layer_metadata(elem: Element, layer_name: str, order: int) -> Element:
+    extra = dict(elem.extra)
+    extra.setdefault("layer", layer_name)
+    extra.setdefault("_layer_order", order)
+    return Element(
+        type=elem.type,
+        content=elem.content,
+        source=elem.source,
+        style=elem.style,
+        position=elem.position,
+        data_ref=elem.data_ref,
+        chart_type=elem.chart_type,
+        query=elem.query,
+        prompt=elem.prompt,
+        size=elem.size,
+        opacity=elem.opacity,
+        filter=elem.filter,
+        animation=elem.animation,
+        children=elem.children,
+        extra=extra,
+    )
+
+
+def _ordered_slide_elements(slide: Slide) -> list[Element]:
+    """合并 slide.layers 和旧 elements，并按图层顺序稳定排序。"""
+    layered: list[tuple[int, float, int, Element]] = []
+    sequence = 0
+
+    for layer_name, elements in slide.layers.items():
+        layer_order = LAYER_ORDER.get(str(layer_name), 30)
+        for elem in elements:
+            z_index = float(elem.extra.get("z_index", 0))
+            layered.append((
+                layer_order,
+                z_index,
+                sequence,
+                _with_layer_metadata(elem, str(layer_name), layer_order),
+            ))
+            sequence += 1
+
+    for elem in slide.elements:
+        layer_name = str(elem.extra.get("layer", "content"))
+        layer_order = LAYER_ORDER.get(layer_name, 30)
+        z_index = float(elem.extra.get("z_index", 0))
+        layered.append((
+            layer_order,
+            z_index,
+            sequence,
+            _with_layer_metadata(elem, layer_name, layer_order),
+        ))
+        sequence += 1
+
+    return [item[3] for item in sorted(layered, key=lambda item: (item[0], item[1], item[2]))]
+
 
 def compile_element(
     elem: Element,
@@ -714,6 +778,7 @@ def compile_slide(
     """
     # 检测 slide 级别的 stack 布局
     slide_stack = slide.layout == "stack"
+    slide_elements = _ordered_slide_elements(slide)
     slide_extra = slide.background or {}
     if isinstance(slide_extra, dict):
         stack_spacing = float(slide_extra.get("spacing", 8))  # 默认 8mm 间距
@@ -729,25 +794,25 @@ def compile_slide(
     # 自动分页：stack 布局且没有绝对定位元素时
     if slide_stack:
         # 检查是否有绝对定位元素
-        has_absolute = any(e.position is not None for e in slide.elements)
+        has_absolute = any(e.position is not None for e in slide_elements)
 
         if not has_absolute:
             # 预估总高度
             total_height = padding_top
-            for elem in slide.elements:
+            for elem in slide_elements:
                 total_height += _estimate_element_height(elem, content_width) + stack_spacing
 
             # 如果超出页面高度，进行分页
             if total_height > 142.875:
                 element_pages = _split_elements_for_pagination(
-                    slide.elements, content_width, 142.875, stack_spacing, padding_top
+                    slide_elements, content_width, 142.875, stack_spacing, padding_top
                 )
             else:
-                element_pages = [slide.elements]
+                element_pages = [slide_elements]
         else:
-            element_pages = [slide.elements]
+            element_pages = [slide_elements]
     else:
-        element_pages = [slide.elements]
+        element_pages = [slide_elements]
 
     # 编译每一页
     slides = []
@@ -808,6 +873,10 @@ def compile_slide(
         extra = {}
         if slide.background:
             extra["background"] = slide.background
+        if slide.background_board:
+            extra["background_board"] = slide.background_board
+        if slide.layers:
+            extra["layers"] = list(slide.layers.keys())
         if slide.transition:
             extra["transition"] = slide.transition
 

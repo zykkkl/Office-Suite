@@ -21,15 +21,23 @@ MINIMAL_YAML = """
 version: "4.0"
 type: presentation
 theme: default
-
+styles:
+  title:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#0F172A" }
 slides:
   - layout: blank
     elements:
       - type: text
-        content: "Hello World"
-        position: { x: 50mm, y: 80mm, width: 150mm, height: 20mm }
+        content: "Hello Office Suite 4.0"
+        style: title
+        position: { x: 24mm, y: 36mm, width: 190mm, height: 24mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        content: "YAML → IR → PPTX"
+        position: { x: 24mm, y: 72mm, width: 112mm, height: 24mm }
         style:
-          font: { family: "Arial", size: 44, weight: 700, color: "#1E293B" }
+          fill: { color: "#EFF6FF" }
+          font: { size: 16, color: "#1D4ED8", weight: 600 }
 """
 
 
@@ -91,7 +99,6 @@ def test_phase0():
     print("\n" + "=" * 60)
     print("Phase 0 验证完成!")
     print("=" * 60)
-
 
 if __name__ == "__main__":
     test_phase0()
