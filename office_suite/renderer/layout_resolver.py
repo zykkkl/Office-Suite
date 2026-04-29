@@ -30,6 +30,7 @@ from ..ir.layout_spec import (
     FlexJustify,
     FlexAlign,
     FlexPosition,
+    FlexWrap,
     GridPosition,
     GridAlign,
 )
@@ -189,7 +190,10 @@ class LayoutResolver:
         direction = FlexDirection(flex_cfg.get("direction", "row"))
         justify = FlexJustify(flex_cfg.get("justify", "start"))
         align = FlexAlign(flex_cfg.get("align", "start"))
+        wrap = FlexWrap(flex_cfg.get("wrap", "nowrap"))
+        align_content = FlexAlign(flex_cfg.get("align_content", "start"))
         gap = flex_cfg.get("gap", 0.0)
+        row_gap = flex_cfg.get("row_gap", 0.0)
 
         layout = FlexLayout(
             container_width=self.container_width,
@@ -200,7 +204,10 @@ class LayoutResolver:
             direction=direction,
             justify=justify,
             align=align,
+            wrap=wrap,
+            align_content=align_content,
             gap=gap,
+            row_gap=row_gap,
         )
 
         items = []

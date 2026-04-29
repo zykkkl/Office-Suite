@@ -161,11 +161,10 @@ class PPTXRenderer(BaseRenderer):
 
         # 渲染元素
         for i, elem_node in enumerate(slide_node.children):
-            # 将解析后的位置注入元素（仅当元素没有显式位置时）
+            # 布局引擎计算的位置始终注入（覆盖旧位置）
             if resolved_positions:
                 key = elem_node.id or str(i)
-                if key in resolved_positions and not elem_node.position:
-                    elem_node.position = resolved_positions[key]
+                elem_node.position = resolved_positions.get(key, elem_node.position)
             self._render_element(slide, elem_node, doc)
 
     def _get_layout_index(self, name: str) -> int:
@@ -218,7 +217,20 @@ class PPTXRenderer(BaseRenderer):
         elif node.node_type == NodeType.CHART:
             self._render_chart(slide, node, doc)
         elif node.node_type == NodeType.GROUP:
-            for child in node.children:
+            # GROUP 内的布局解析
+            from ..layout_resolver import detect_layout_mode, LayoutResolver
+            group_mode = detect_layout_mode(node)
+            group_positions: dict[str, IRPosition] = {}
+            if group_mode != "absolute":
+                g_pos = node.position or IRPosition()
+                gw = g_pos.width_mm if g_pos.width_mm > 0 else SLIDE_WIDTH_MM
+                gh = g_pos.height_mm if g_pos.height_mm > 0 else SLIDE_HEIGHT_MM
+                g_resolver = LayoutResolver(gw, gh)
+                group_positions = g_resolver.resolve_children(node)
+            for ci, child in enumerate(node.children):
+                if group_positions:
+                    ckey = child.id or str(ci)
+                    child.position = group_positions.get(ckey, child.position)
                 self._render_element(slide, child, doc)
         else:
             self._render_placeholder(slide, node)

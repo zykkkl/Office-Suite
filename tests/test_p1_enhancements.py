@@ -16,7 +16,7 @@ import pytest
 from office_suite.engine.style.color import OKLCH, oklch_to_hex, hex_to_oklch
 from office_suite.ir.layout_spec import (
     LayoutSpec, LayoutMode, AbsolutePosition, GridPosition, FlexPosition,
-    FlexDirection,
+    FlexDirection, FlexJustify, FlexAlign,
 )
 from office_suite.ir.compiler import _resolve_color, compile_style
 from office_suite.dsl.schema import StyleSpec, FontSpec, FillSpec
@@ -213,6 +213,106 @@ class TestLayoutSpecFlex:
         assert pos2.width > 50
         # 两个 grow=1 的 item 宽度相同
         assert pos1.width == pytest.approx(pos2.width)
+
+    def test_flex_justify_space_between(self):
+        """justify-content: space-between — 首尾贴边，中间均匀"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.ROW, justify=FlexJustify.SPACE_BETWEEN),
+        )
+        items = [FItem(width=30, height=20) for _ in range(3)]
+        positions = [spec.resolve_mm(200.0, 100.0, flex_items=items, flex_index=i) for i in range(3)]
+
+        # 第一个贴左边
+        assert positions[0].x == pytest.approx(0)
+        # 最后一个贴右边
+        assert positions[2].x + positions[2].width == pytest.approx(200.0)
+        # 中间均匀分布
+        gap = (200.0 - 3 * 30) / 2
+        assert positions[1].x == pytest.approx(30 + gap)
+
+    def test_flex_justify_space_evenly(self):
+        """justify-content: space-evenly — 所有间距相等"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.ROW, justify=FlexJustify.SPACE_EVENLY),
+        )
+        items = [FItem(width=30, height=20) for _ in range(3)]
+        positions = [spec.resolve_mm(200.0, 100.0, flex_items=items, flex_index=i) for i in range(3)]
+
+        # 4 个间距（两端 + 中间两个）各为 (200 - 90) / 4 = 27.5
+        expected_gap = (200.0 - 3 * 30) / 4
+        assert positions[0].x == pytest.approx(expected_gap)
+        assert positions[1].x == pytest.approx(expected_gap * 2 + 30)
+        assert positions[2].x == pytest.approx(expected_gap * 3 + 60)
+
+    def test_flex_justify_space_around(self):
+        """justify-content: space-around — 两端间距是中间的一半"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.ROW, justify=FlexJustify.SPACE_AROUND),
+        )
+        items = [FItem(width=30, height=20) for _ in range(3)]
+        positions = [spec.resolve_mm(200.0, 100.0, flex_items=items, flex_index=i) for i in range(3)]
+
+        # 每个 item 分到的间距 = (200 - 90) / 3 = 36.67，两端各占一半 = 18.33
+        per_gap = (200.0 - 3 * 30) / 3
+        assert positions[0].x == pytest.approx(per_gap / 2, abs=0.1)
+        assert positions[1].x == pytest.approx(per_gap / 2 + 30 + per_gap, abs=0.1)
+
+    def test_flex_wrap(self):
+        """flex-wrap: wrap — 子项溢出时换行"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        from office_suite.ir.layout_spec import FlexWrap
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.ROW, wrap=FlexWrap.WRAP, gap=5.0),
+        )
+        # shrink=0 防止收缩；100*3+5*2=210 < 254，但 100*3+5*2=210+100+5=315 > 254
+        items = [FItem(width=100, height=30, shrink=0) for _ in range(3)]
+        pos0 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=0)
+        pos1 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=1)
+        pos2 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=2)
+
+        # 前两个在同一行（100+5+100=205 <= 254）
+        assert pos0.y == pos1.y
+        # 第三个换行（205+5+100=310 > 254），y 更大
+        assert pos2.y > pos0.y
+
+    def test_flex_stretch(self):
+        """align-items: stretch — 子项交叉轴撑满"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.ROW, align=FlexAlign.STRETCH),
+        )
+        items = [FItem(width=80, height=0), FItem(width=80, height=0)]
+        pos0 = spec.resolve_mm(254.0, 100.0, flex_items=items, flex_index=0)
+
+        # height 应撑满容器高度
+        assert pos0.height == pytest.approx(100.0)
+
+    def test_flex_column_wrap(self):
+        """flex-direction: column + wrap — 纵向排列换列"""
+        from office_suite.engine.layout.flex import FlexItem as FItem
+        from office_suite.ir.layout_spec import FlexWrap
+        spec = LayoutSpec(
+            mode=LayoutMode.FLEX,
+            flex=FlexPosition(direction=FlexDirection.COLUMN, wrap=FlexWrap.WRAP, gap=5.0),
+        )
+        # shrink=0 防止收缩；60*3+5*2=130 < 142.875，但 60*3+5*2+60+5=195 > 142.875
+        items = [FItem(width=50, height=60, shrink=0) for _ in range(3)]
+        pos0 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=0)
+        pos1 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=1)
+        pos2 = spec.resolve_mm(254.0, 142.875, flex_items=items, flex_index=2)
+
+        # 前两个在同一列（60+5+60=125 <= 142.875）
+        assert pos0.x == pos1.x
+        # 第三个换列（125+5+60=190 > 142.875），x 更大
+        assert pos2.x > pos0.x
 
 
 # ============================================================

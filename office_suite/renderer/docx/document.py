@@ -22,8 +22,11 @@ DOCX 能力限制（设计方案第八章）：
   - Word 内置样式（Heading 1-9, List Bullet 等）
 """
 
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from docx import Document
 from docx.shared import Pt, Mm, RGBColor, Inches
@@ -51,7 +54,6 @@ class DOCXRenderer(BaseRenderer):
 
     def __init__(self):
         self._doc: Document | None = None
-        self._slide_count: int = 0  # 用于跟踪是否需要分页
 
     @property
     def capability(self) -> RendererCapability:
@@ -79,10 +81,9 @@ class DOCXRenderer(BaseRenderer):
         # 校验
         validation = validate_ir_v2(doc)
         for issue in validation.issues:
-            print(f"[IR {issue.severity.value.upper()}] {issue}")
+            logger.warning("[IR %s] %s", issue.severity.value.upper(), issue)
 
         self._doc = Document()
-        self._slide_count = len(doc.children)
 
         # 设置默认字体
         style = self._doc.styles["Normal"]
@@ -162,6 +163,8 @@ class DOCXRenderer(BaseRenderer):
 
     def _apply_section_properties(self, page_size: str, orientation: str):
         """应用节属性（页面大小、方向）"""
+        if not self._doc.sections:
+            return
         section = self._doc.sections[-1]
         # 页面大小
         size_map = {
@@ -272,12 +275,18 @@ class DOCXRenderer(BaseRenderer):
         # 段前间距（pt）
         space_before = extra.get("space_before")
         if space_before is not None:
-            pf.space_before = Pt(float(space_before))
+            try:
+                pf.space_before = Pt(float(space_before))
+            except (TypeError, ValueError):
+                logger.warning("无效的 space_before 值: %s", space_before)
 
         # 段后间距（pt）
         space_after = extra.get("space_after")
         if space_after is not None:
-            pf.space_after = Pt(float(space_after))
+            try:
+                pf.space_after = Pt(float(space_after))
+            except (TypeError, ValueError):
+                logger.warning("无效的 space_after 值: %s", space_after)
 
         # 行距
         line_spacing = extra.get("line_spacing")
@@ -308,6 +317,9 @@ class DOCXRenderer(BaseRenderer):
         """
         rows = node.extra.get("rows", 3)
         cols = node.extra.get("cols", 3)
+        # 校验 rows/cols 必须为正整数
+        rows = max(1, int(rows)) if rows else 3
+        cols = max(1, int(cols)) if cols else 3
         data = node.extra.get("data", [])
         table_style = node.extra.get("table_style", "Table Grid")
 
@@ -344,7 +356,8 @@ class DOCXRenderer(BaseRenderer):
 
     def _render_shape(self, node: IRNode, doc: IRDocument):
         """渲染形状 → DOCX 中降级为带样式的段落"""
-        content = node.content or f"[{node.extra.get('shape_type', 'shape')}]"
+        shape_type = node.extra.get("shape_type") or "shape"
+        content = node.content or f"[{shape_type}]"
         style = node.style
 
         para = self._doc.add_paragraph(content)

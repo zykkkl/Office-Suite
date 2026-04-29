@@ -21,10 +21,13 @@ XLSX 能力：
   - 样式（字体/填充/边框）
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
+
+logger = logging.getLogger(__name__)
 from openpyxl.styles import Font, PatternFill, Border, Side
 from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
 from openpyxl.chart.label import DataLabelList
@@ -89,7 +92,7 @@ class XLSXRenderer(BaseRenderer):
 
         validation = validate_ir_v2(doc)
         for issue in validation.issues:
-            print(f"[IR {issue.severity.value.upper()}] {issue}")
+            logger.warning("[IR %s] %s", issue.severity.value.upper(), issue)
 
         self._wb = Workbook()
         # 删除默认 Sheet
@@ -105,9 +108,10 @@ class XLSXRenderer(BaseRenderer):
             # 冻结窗格
             freeze_row = node.extra.get("freeze_row")
             freeze_col = node.extra.get("freeze_col")
-            if freeze_row or freeze_col:
-                row_num = freeze_row or 1
-                col_letter = get_column_letter(freeze_col) if freeze_col else "A"
+            if freeze_row is not None or freeze_col is not None:
+                row_num = freeze_row if freeze_row is not None else 1
+                col_num = freeze_col if freeze_col is not None else 1
+                col_letter = get_column_letter(col_num)
                 ws.freeze_panes = f"{col_letter}{row_num}"
 
         self._wb.save(str(output_path))
@@ -161,7 +165,12 @@ class XLSXRenderer(BaseRenderer):
         """
         data = node.extra.get("data", [])
         rows = node.extra.get("rows", len(data))
-        cols = node.extra.get("cols", len(data[0]) if data else 0)
+        # 安全获取列数：data 可能为空或元素非 list
+        if data and isinstance(data[0], list):
+            default_cols = len(data[0])
+        else:
+            default_cols = 0
+        cols = node.extra.get("cols", default_cols)
         number_format = node.extra.get("number_format", "")
         merge_cells = node.extra.get("merge_cells", [])
         conditional_format = node.extra.get("conditional_format", "")
@@ -257,6 +266,8 @@ class XLSXRenderer(BaseRenderer):
                 fill=PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid"),
             )
             ws.conditional_formatting.add(data_range, rule)
+        else:
+            logger.warning("未知条件格式类型: %s", fmt_type)
 
     def _render_chart(self, node: IRNode, ws):
         """渲染图表 → 在 Sheet 中嵌入图表
@@ -293,7 +304,10 @@ class XLSXRenderer(BaseRenderer):
         data_rows = len(categories)
 
         # 创建图表
-        chart_class = CHART_CLASS_MAP.get(chart_type_str, BarChart)
+        chart_class = CHART_CLASS_MAP.get(chart_type_str)
+        if chart_class is None:
+            logger.warning("未知图表类型 '%s'，回退到 bar", chart_type_str)
+            chart_class = BarChart
         chart = chart_class()
         chart.title = title
         chart.style = 10
@@ -339,7 +353,8 @@ class XLSXRenderer(BaseRenderer):
 
         # 嵌入图表
         ws.add_chart(chart, f"A{self._current_row + data_rows + 2}")
-        self._current_row += data_rows + 18  # 图表占位
+        # 图表区域占位：2 行表头间距 + 15 行图表高度 + 1 行底部间距
+        self._current_row += data_rows + 18
 
     def _apply_cell_style(self, cell, style: IRStyle | None):
         """应用单元格样式

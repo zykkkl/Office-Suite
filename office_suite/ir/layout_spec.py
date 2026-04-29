@@ -81,13 +81,23 @@ class FlexAlign(Enum):
     BASELINE = "baseline"
 
 
+class FlexWrap(Enum):
+    """弹性换行模式"""
+    NOWRAP = "nowrap"
+    WRAP = "wrap"
+    WRAP_REVERSE = "wrap-reverse"
+
+
 @dataclass(frozen=True)
 class FlexPosition:
     """弹性布局定位"""
     direction: FlexDirection = FlexDirection.ROW
     justify: FlexJustify = FlexJustify.START
     align: FlexAlign = FlexAlign.START
-    gap: float = 0.0           # 间距（mm）
+    wrap: FlexWrap = FlexWrap.NOWRAP
+    align_content: FlexAlign = FlexAlign.START  # 多行交叉轴分布
+    gap: float = 0.0           # 主轴间距（mm）
+    row_gap: float = 0.0       # 交叉轴间距（mm），wrap 模式使用
     order: int = 0             # 排序
     grow: float = 0.0          # 放大比例
     shrink: float = 1.0        # 缩小比例
