@@ -298,11 +298,183 @@ TYPE_MAP = {
     "table": NodeType.TABLE,
     "chart": NodeType.CHART,
     "group": NodeType.GROUP,
+    "semantic_icon": NodeType.GROUP,
     "video": NodeType.VIDEO,
     "audio": NodeType.AUDIO,
     "diagram": NodeType.DIAGRAM,
     "code": NodeType.CODE,
 }
+
+
+def _semantic_icon_style(color: str, *, fill_opacity: float | None = None) -> IRStyle:
+    if fill_opacity is None:
+        return IRStyle()
+    return IRStyle(fill_color=color, fill_opacity=fill_opacity)
+
+
+def _semantic_icon_shape(
+    shape_type: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    color: str,
+    *,
+    fill_opacity: float | None = None,
+    stroke_width: float = 1.4,
+) -> IRNode:
+    extra = {"shape_type": shape_type}
+    if stroke_width > 0:
+        extra["outline"] = {"color": color, "width": stroke_width}
+    return IRNode(
+        node_type=NodeType.SHAPE,
+        position=IRPosition(x_mm=x, y_mm=y, width_mm=w, height_mm=h),
+        style=_semantic_icon_style(color, fill_opacity=fill_opacity),
+        extra=extra,
+    )
+
+
+def _semantic_icon_line(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    color: str,
+    *,
+    stroke_width: float = 1.4,
+) -> IRNode:
+    left = min(x1, x2)
+    top = min(y1, y2)
+    width = abs(x2 - x1)
+    height = abs(y2 - y1)
+    return IRNode(
+        node_type=NodeType.SHAPE,
+        position=IRPosition(x_mm=left, y_mm=top, width_mm=width, height_mm=height),
+        style=IRStyle(),
+        extra={
+            "shape_type": "line",
+            "line_points": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+            "outline": {"color": color, "width": stroke_width},
+        },
+    )
+
+
+def _compile_semantic_icon(elem: Element, path: str = "") -> IRNode:
+    pos = compile_position(elem.position)
+    if pos is None:
+        pos = IRPosition(width_mm=16, height_mm=16)
+
+    icon = str(elem.extra.get("icon", elem.extra.get("name", "custom"))).lower()
+    color = str(elem.extra.get("color", "#FACC15"))
+    stroke_width = float(elem.extra.get("stroke_width", 1.4))
+    x0, y0, w, h = pos.x_mm, pos.y_mm, pos.width_mm, pos.height_mm
+
+    def sx(v: float) -> float:
+        return x0 + w * v / 100
+
+    def sy(v: float) -> float:
+        return y0 + h * v / 100
+
+    def sw(v: float) -> float:
+        return w * v / 100
+
+    def sh(v: float) -> float:
+        return h * v / 100
+
+    children = _compile_semantic_icon_primitives(
+        elem.extra.get("primitives"),
+        sx=sx,
+        sy=sy,
+        sw=sw,
+        sh=sh,
+        color=color,
+        default_stroke_width=stroke_width,
+    )
+
+    return IRNode(
+        node_type=NodeType.GROUP,
+        id=elem.extra.get("id", ""),
+        position=pos,
+        children=children,
+        extra={"semantic_icon": icon, "color": color},
+        source_path=path,
+    )
+
+
+def _compile_semantic_icon_primitives(
+    primitives: Any,
+    *,
+    sx,
+    sy,
+    sw,
+    sh,
+    color: str,
+    default_stroke_width: float,
+) -> list[IRNode]:
+    """Compile AI-authored icon primitives into PPT-native shape nodes.
+
+    Primitive coordinates are normalized to a 0-100 icon box, so the same icon
+    scales cleanly with its outer `position`.
+    """
+    if not isinstance(primitives, list):
+        return []
+
+    shape_aliases = {
+        "rect": "rectangle",
+        "rectangle": "rectangle",
+        "round_rect": "rounded_rectangle",
+        "rounded_rectangle": "rounded_rectangle",
+        "circle": "ellipse",
+        "ellipse": "ellipse",
+        "line": "line",
+        "triangle": "triangle",
+    }
+
+    nodes: list[IRNode] = []
+    for primitive in primitives:
+        if not isinstance(primitive, dict):
+            continue
+        primitive_type = str(primitive.get("type", "shape")).lower()
+        stroke_width = float(primitive.get("stroke_width", default_stroke_width))
+        primitive_color = str(primitive.get("color", color))
+
+        if primitive_type == "line":
+            x1 = float(primitive.get("x1", 0))
+            y1 = float(primitive.get("y1", 0))
+            x2 = float(primitive.get("x2", 100))
+            y2 = float(primitive.get("y2", 100))
+            nodes.append(_semantic_icon_line(
+                sx(x1), sy(y1), sx(x2), sy(y2), primitive_color,
+                stroke_width=stroke_width,
+            ))
+            continue
+
+        shape_type = shape_aliases.get(str(primitive.get("shape", primitive_type)).lower(), "rectangle")
+        x = float(primitive.get("x", 0))
+        y = float(primitive.get("y", 0))
+        w = float(primitive.get("width", primitive.get("w", 20)))
+        h = float(primitive.get("height", primitive.get("h", w)))
+        fill = primitive.get("fill_opacity", primitive.get("fill"))
+        if isinstance(fill, bool):
+            fill_opacity = 0.18 if fill else None
+        elif fill is None:
+            fill_opacity = None
+        else:
+            fill_opacity = float(fill)
+        stroke = primitive.get("stroke", True)
+        actual_stroke_width = stroke_width if stroke is not False else 0
+        nodes.append(_semantic_icon_shape(
+            shape_type,
+            sx(x),
+            sy(y),
+            sw(w),
+            sh(h),
+            primitive_color,
+            fill_opacity=fill_opacity,
+            stroke_width=actual_stroke_width,
+        ))
+
+    return nodes
 
 LAYER_ORDER = {
     "background": 0,
@@ -323,6 +495,7 @@ def _with_layer_metadata(elem: Element, layer_name: str, order: int) -> Element:
         content=elem.content,
         source=elem.source,
         style=elem.style,
+        style_ref=elem.style_ref,
         position=elem.position,
         data_ref=elem.data_ref,
         chart_type=elem.chart_type,
@@ -382,13 +555,18 @@ def compile_element(
 
     样式级联：theme → doc_global → element_style_ref → element_inline
     """
+    if elem.type == "semantic_icon":
+        return _compile_semantic_icon(elem, path)
+
     node_type = TYPE_MAP.get(elem.type, NodeType.SHAPE)
 
     # 样式：支持字符串引用或内联（dict 或 StyleSpec）
     style_ref = None
     inline_style = None
 
-    if isinstance(elem.style, str):
+    if isinstance(elem.style_ref, str):
+        style_ref = elem.style_ref
+    elif isinstance(elem.style, str):
         style_ref = elem.style
     elif isinstance(elem.style, dict):
         # 原始 YAML dict → StyleSpec → IRStyle
@@ -470,6 +648,7 @@ def compile_element(
                 content=child.content,
                 source=child.source,
                 style=child.style,
+                style_ref=child.style_ref,
                 position=child_pos,
                 data_ref=child.data_ref,
                 chart_type=child.chart_type,
@@ -912,6 +1091,7 @@ def compile_slide(
                     content=elem.content,
                     source=elem.source,
                     style=elem.style,
+                    style_ref=elem.style_ref,
                     position=auto_pos,
                     data_ref=elem.data_ref,
                     chart_type=elem.chart_type,

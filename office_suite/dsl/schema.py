@@ -38,7 +38,7 @@ class ElementPriority(Enum):
 
 # P0 支持的元素类型
 P0_ELEMENT_TYPES = {
-    "text", "image", "shape", "table", "chart", "group"
+    "text", "image", "shape", "table", "chart", "group", "semantic_icon"
 }
 
 # P1 支持的元素类型
@@ -119,6 +119,7 @@ class Element:
     content: str | None = None
     source: str | dict | None = None
     style: str | StyleSpec | None = None
+    style_ref: str | None = None
     position: PositionSpec | None = None
     data_ref: str | None = None
     chart_type: str | None = None

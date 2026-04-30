@@ -94,17 +94,40 @@ Persist the visual design system before writing YAML. Must include:
 - 16:9, `254mm x 142.875mm`
 - Background color, margin system
 
-#### 3.2 Color Palette (strict limit)
-Define exactly 5-6 colors:
+#### 3.2 Theme Selection (MANDATORY — do this before picking any colors)
+
+**First**, read `office_suite/design/tokens.py` and review all 10 built-in presets. Evaluate which preset best matches the deck's domain, audience, and emotional tone:
+
+| Preset | Background | Accent | Suits |
+|--------|-----------|--------|-------|
+| `warm` | cream #FFFBEB | amber #D97706 | Education, reading, lifestyle, nonprofit |
+| `elegant` | white #FFFFFF | gold #D4AF37 | Formal events, luxury, literature, arts |
+| `editorial` | white #FFFFFF | blue #2563EB | Reports, journalism, clean communication |
+| `corporate` | white #FFFFFF | blue #1E40AF | Business, finance, enterprise |
+| `minimal` | white #FFFFFF | blue #2563EB | Startups, modern tech, design-focused |
+| `tech` | dark #0B0F19 | cyan #06B6D4 | Developer tools, AI, deep tech |
+| `creative` | dark #18181B | rose #E11D48 | Brand launches, creative portfolios, bold pitches |
+| `flat` | light #F0F9FF | sky #0EA5E9 | Healthcare, wellness, accessibility |
+| `chinese` | deep red #7F1D1D | gold #D4AF37 | Chinese festivals, traditional culture, celebration |
+| `forest` | — | — | (gradient only: green-teal) |
+
+**Second**, set `style_preset` in `deck.yml` to the chosen preset name. The compiler will auto-derive base styles from the preset.
+
+**Third**, if the preset needs tuning (e.g., a lighter card surface, a warmer accent), override individual tokens in `design.md` palette. Never invent a palette from scratch without first consulting the preset list and documenting why no preset fits.
+
+#### 3.3 Color Palette (strict limit)
+Define exactly 5-6 colors using the preset as baseline:
 ```text
-bg_primary:    #0A0E1A   (page background)
-bg_surface:    #12182B   (card/panel background)
-border:        #1E2642   (dividers, card borders)
-accent:        #C9A84C   (titles, highlights, primary emphasis)
-text_primary:  #E8E4DC   (body text)
-text_muted:    #6B7280   (labels, captions, page numbers)
+style_preset: warm     # ← selected from tokens.py preset list
+# Overrides (if any):
+bg_primary:    #FFFBEB   (from preset)
+bg_surface:    #FEF3C7   (from preset)
+border:        #FDE68A   (from preset)
+accent:        #D97706   (from preset)
+text_primary:  #1C1917   (from preset)
+text_muted:    #78716C   (from preset)
 ```
-All emphasis must use opacity/brightness variations of these colors. Do not add new hues.
+All emphasis must use opacity/brightness variations of these colors. Do not add new hues. If the preset provides exactly what's needed, use it as-is.
 
 #### 3.3 Typography Scale (strict 4-level)
 
@@ -152,7 +175,97 @@ Card internal padding: 4mm
 - [ ] All cards use identical radius (3mm)
 - [ ] Page markers: `x: 196mm, y: 126mm, width: 38mm`, align:right
 
-### Step 4: Generate YAML Files (Generate-All-First)
+#### 3.7 Asset Decision Gate
+
+Before any page YAML is written, `design.md` must explicitly record the visual asset plan:
+
+- Photo decision: `use`, `skip`, or `brief-only`
+- Target slides that need photos, if any
+- Search queries or source criteria for each photo
+- Icon decision: `native semantic_icon`, `external SVG/PNG`, or `skip`
+- Icon inventory: exact icon names, target slides, meaning, size class, stroke width, and color
+- Fallback when network/API access is unavailable
+
+This gate is mandatory even when the final decision is to use no photos. A deck may skip photo search only when `design.md` explains why diagrams, native icons, charts, or text-only layouts are clearer than photographic material.
+
+### Step 4: Search Photo Assets
+
+**This step is mandatory for every deck.** Do not write `deck.yml` or any page YAML before completing it.
+
+1. Always run `python -m office_suite.tools.unsplash_assets` with at least 3 search queries tailored to the deck topic.
+2. If `UNSPLASH_ACCESS_KEY` is not set, the tool still generates `asset_brief.md` and `manifest.json` — that is the minimum viable output.
+3. Only after the tool has run may you decide which photos to actually use. Skipping the run entirely is a process defect.
+
+Read `office_suite/guideline/design/unsplash_assets.md`, then execute:
+
+```bash
+python -m office_suite.tools.unsplash_assets \
+  --output-dir output/<deck-name>/assets/photos \
+  --topic "<deck topic>" \
+  --query "<query 1: scene / mood / object relevant to topic>" \
+  --query "<query 2: different angle or setting>" \
+  --query "<query 3: third variation>" \
+  --orientation landscape
+```
+
+Rules:
+- Craft queries that match the deck's specific topic, not generic filler.
+- Prefer 1-3 strong photos in a short deck, not images on every slide.
+- Select images with clean negative space and colors compatible with the chosen preset.
+- Use local downloaded JPG paths from `manifest.json` in page YAML.
+- Preserve attribution metadata in `manifest.json`.
+- Apply `blur` + `opacity` filters to full-bleed background images so text remains readable.
+- If no suitable image is found, record that result in `design.md` and proceed with native diagram/icon treatment.
+- Missing `asset_brief.md`, `manifest.json`, or a documented skip reason blocks the quality gate.
+
+### Step 5: Design and Author semantic_icon Assets
+
+**This step is mandatory for every deck.** Do not write any page YAML before it is complete.
+
+Every deck must include at least 1-2 `semantic_icon` elements authored from basic primitives. These are PPT-native shapes (no external tools needed) composed from: `line`, `rectangle`, `rounded_rectangle`, `ellipse`, `circle`, `triangle`.
+
+#### Workflow
+
+1. **Design the icon set** — Identify 1-3 icons that visually reinforce the deck's message. Examples per domain:
+   - Reading/books: open book, bookmark, lamp
+   - Business: chart bar, handshake, target
+   - Tech: chip, cloud, gear
+   - Education: pencil, graduation cap, lightbulb
+   - Health: heart, cross, leaf
+
+2. **Write primitive recipes** — Each icon lives in a 100×100 coordinate space (viewBox). Use the deck's `accent` color. Example:
+
+```yaml
+- type: semantic_icon
+  color: "<accent color>"
+  stroke_width: 1.6
+  position: { x: 117mm, y: 26mm, width: 20mm, height: 14mm }
+  primitives:
+    - { type: line, x1: 18, y1: 14, x2: 50, y2: 4 }
+    - { type: line, x1: 50, y1: 4, x2: 82, y2: 14 }
+    - { type: line, x1: 18, y1: 14, x2: 18, y2: 88 }
+    - { type: line, x1: 82, y1: 14, x2: 82, y2: 88 }
+    - { type: line, x1: 18, y1: 88, x2: 50, y2: 78 }
+    - { type: line, x1: 50, y1: 78, x2: 82, y2: 88 }
+    - { type: line, x1: 50, y1: 4, x2: 50, y2: 78 }
+```
+
+3. **Record the inventory** in `design.md` before writing page YAML:
+   - Icon name, semantic meaning, primitive count, size, stroke width, color
+   - Which slide(s) each icon appears on
+
+4. **Add to page YAML** — Place the `semantic_icon` element in the target slide's YAML alongside other elements.
+
+Rules:
+- Author at least 1 icon for the cover or closing slide.
+- Use one color from the deck palette, normally `accent`.
+- Keep primitives minimal (5-15 primitives per icon).
+- Do not use emoji, clip art, or external SVG/PNG as icons.
+- Missing icon inventory or missing primitive recipes in design.md blocks the quality gate.
+
+### Step 6: Generate YAML Files (Generate-All-First)
+
+Prerequisite: `outline.md`, `design.md`, and the photo/icon asset plan are complete. If photos are used, page YAML must reference local image paths from `manifest.json`; if photos are skipped, `design.md` must contain the skip reason. If icons are used, page YAML must include the preplanned `semantic_icon.primitives`.
 
 Write files in this order, all in one batch:
 
@@ -165,19 +278,21 @@ version: "4.0"
 type: presentation
 title: "Presentation Title"
 theme: default
+style_preset: warm   # ← REQUIRED: one of the 10 presets from design/tokens.py
 styles:
   h1:
-    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#C9A84C" }
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#D97706" }
   h2:
-    font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#E8E4DC" }
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#1C1917" }
   body:
-    font: { family: "Microsoft YaHei UI", size: 13, weight: 400, color: "#E8E4DC" }
+    font: { family: "Microsoft YaHei UI", size: 13, weight: 400, color: "#1C1917" }
   caption:
-    font: { family: "Microsoft YaHei UI", size: 10, weight: 400, color: "#6B7280" }
+    font: { family: "Microsoft YaHei UI", size: 10, weight: 400, color: "#78716C" }
 pages:
   - pages/001_cover.yml
   - pages/002_content.yml
 ```
+The `style_preset` auto-generates base styles; the `styles:` section can override individual tokens. Page YAML inline styles override both.
 
 Page file rules:
 - Every slide must pick a layout pattern from the library.
@@ -186,7 +301,7 @@ Page file rules:
 - Use `align: center`, `vertical_align: middle`, `margin: 0` for centered content inside cards.
 - Never hand-tune coordinates to simulate centering.
 
-### Step 5: Unified Quality Gate
+### Step 7: Unified Quality Gate
 
 After ALL files are written, run:
 

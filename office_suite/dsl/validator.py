@@ -64,11 +64,15 @@ class DSLValidationResult:
 VALID_DOC_TYPES = {"presentation", "document", "spreadsheet"}
 VALID_ELEMENT_TYPES = {
     "text", "image", "shape", "table", "chart", "group",
-    "video", "audio", "code", "diagram", "model_3d", "map",
+    "semantic_icon", "video", "audio", "code", "diagram", "model_3d", "map",
 }
 VALID_SHAPE_TYPES = {
     "rectangle", "rounded_rectangle", "ellipse", "circle",
     "triangle", "diamond", "arrow", "line", "star",
+}
+VALID_SEMANTIC_ICON_PRIMITIVES = {
+    "rectangle", "rounded_rectangle", "round_rect", "rect",
+    "ellipse", "circle", "triangle", "line",
 }
 VALID_CHART_TYPES = {
     "bar", "column", "line", "pie", "area", "scatter",
@@ -76,7 +80,7 @@ VALID_CHART_TYPES = {
 }
 VALID_POSITION_KEYS = {"x", "y", "width", "height", "bottom", "center"}
 VALID_FONT_KEYS = {"family", "size", "weight", "color", "italic", "underline"}
-VALID_FILL_KEYS = {"color", "gradient", "image"}
+VALID_FILL_KEYS = {"color", "gradient", "image", "opacity"}
 VALID_GRADIENT_KEYS = {"type", "angle", "stops", "center"}
 VALID_SHADOW_KEYS = {"blur", "offset", "color", "spread"}
 VALID_LENGTH_PATTERN = r"^-?\d+(\.\d+)?(mm|cm|in|pt|px|%)?$"
@@ -164,6 +168,36 @@ def _check_element(elem: dict, path: str, result: DSLValidationResult):
             path, "image_source_required"))
 
     # shape 子类型
+    if etype == "semantic_icon":
+        primitives = elem.get("primitives")
+        if not isinstance(primitives, list) or not primitives:
+            result.issues.append(DSLValidationIssue(
+                Severity.ERROR,
+                "semantic_icon must include AI-authored primitives; preset icon names are not allowed",
+                path,
+                "semantic_icon_primitives_required",
+            ))
+        else:
+            for k, primitive in enumerate(primitives):
+                pp = f"{path}.primitives[{k}]"
+                if not isinstance(primitive, dict):
+                    result.issues.append(DSLValidationIssue(
+                        Severity.ERROR,
+                        "semantic_icon primitive must be a dictionary",
+                        pp,
+                        "semantic_icon_primitive_type",
+                    ))
+                    continue
+                primitive_type = str(primitive.get("type", "shape")).lower()
+                shape_name = str(primitive.get("shape", primitive_type)).lower()
+                if shape_name not in VALID_SEMANTIC_ICON_PRIMITIVES:
+                    result.issues.append(DSLValidationIssue(
+                        Severity.ERROR,
+                        f"unsupported semantic_icon primitive '{shape_name}'",
+                        pp,
+                        "semantic_icon_primitive_unknown",
+                    ))
+
     if etype == "shape":
         st = elem.get("shape_type")
         if st and st not in VALID_SHAPE_TYPES:

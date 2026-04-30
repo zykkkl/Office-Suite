@@ -33,7 +33,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt, Emu, Mm
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.chart.data import CategoryChartData
 
@@ -507,6 +507,28 @@ class PPTXRenderer(BaseRenderer):
 
         left, top, width, height = self._pos_to_emu(pos)
         shape_type = node.extra.get("shape_type", "rectangle")
+        if shape_type == "line":
+            points = node.extra.get("line_points")
+            if isinstance(points, dict):
+                shape = slide.shapes.add_connector(
+                    MSO_CONNECTOR.STRAIGHT,
+                    Mm(float(points.get("x1", pos.x_mm))),
+                    Mm(float(points.get("y1", pos.y_mm))),
+                    Mm(float(points.get("x2", pos.x_mm + pos.width_mm))),
+                    Mm(float(points.get("y2", pos.y_mm + pos.height_mm))),
+                )
+                self._apply_shape_border(shape, node)
+                return
+            shape = slide.shapes.add_connector(
+                MSO_CONNECTOR.STRAIGHT,
+                left,
+                top,
+                left + width,
+                top + height,
+            )
+            self._apply_shape_border(shape, node)
+            return
+
         mso_shape = self._get_shape_type(shape_type)
 
         shape = slide.shapes.add_shape(mso_shape, left, top, width, height)
@@ -1368,10 +1390,16 @@ class PPTXRenderer(BaseRenderer):
             "rectangle": MSO_SHAPE.RECTANGLE,
             "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
             "circle": MSO_SHAPE.OVAL,
+            "ellipse": MSO_SHAPE.OVAL,
             "oval": MSO_SHAPE.OVAL,
             "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
             "diamond": MSO_SHAPE.DIAMOND,
             "arrow": MSO_SHAPE.RIGHT_ARROW,
+            "arrow_right": MSO_SHAPE.RIGHT_ARROW,
+            "circular_arrow": MSO_SHAPE.CIRCULAR_ARROW,
+            "arc": MSO_SHAPE.ARC,
+            "document": MSO_SHAPE.FLOWCHART_DOCUMENT,
+            "lightning": MSO_SHAPE.LIGHTNING_BOLT,
             "star": MSO_SHAPE.STAR_5_POINT,
             "hexagon": MSO_SHAPE.HEXAGON,
             "pentagon": MSO_SHAPE.PENTAGON,

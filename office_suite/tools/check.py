@@ -13,7 +13,7 @@ from typing import Iterable
 import yaml
 
 from ..dsl.parser import parse_yaml
-from ..dsl.validator import DSLValidationIssue, validate_dsl
+from ..dsl.validator import DSLValidationIssue, Severity, validate_dsl
 from ..ir.compiler import compile_document
 from ..ir.validator import ValidationIssue, validate_ir_v2
 from .convert import convert_ir
@@ -78,6 +78,7 @@ def check_dsl_file(
 
     dsl_validation = validate_dsl(raw)
     result.dsl_issues = dsl_validation.issues
+    result.dsl_issues.extend(_validate_referenced_pages(raw, dsl_path.parent))
 
     doc = parse_yaml(dsl_path)
     result.slide_count = len(doc.slides)
@@ -101,6 +102,65 @@ def check_dsl_file(
             result.outputs[fmt] = convert_ir(ir_doc, output_path, fmt)
 
     return result
+
+
+def _validate_referenced_pages(raw: dict, base_dir: Path) -> list[DSLValidationIssue]:
+    """Validate slide YAML referenced from top-level pages.
+
+    Entry files usually contain only `pages: [...]`, so validating the raw
+    entry file alone misses slide-level rules such as semantic_icon primitives.
+    """
+    issues: list[DSLValidationIssue] = []
+    page_refs = raw.get("pages") or []
+    if not isinstance(page_refs, list):
+        return issues
+
+    for index, ref in enumerate(page_refs):
+        if isinstance(ref, dict):
+            if "path" not in ref:
+                slide_raws = [ref]
+                page_label = f"pages[{index}]"
+            else:
+                ref = ref["path"]
+                slide_raws = []
+                page_label = str(ref)
+        else:
+            slide_raws = []
+            page_label = str(ref)
+
+        if isinstance(ref, str):
+            page_path = Path(ref)
+            if not page_path.is_absolute():
+                page_path = base_dir / page_path
+            try:
+                page_raw = yaml.safe_load(page_path.read_text(encoding="utf-8")) or {}
+            except OSError as exc:
+                issues.append(DSLValidationIssue(
+                    severity=Severity.ERROR,
+                    message=f"Cannot read page file: {exc}",
+                    path=f"pages[{index}]",
+                    rule="page_file_read",
+                ))
+                continue
+
+            if "slides" in page_raw and isinstance(page_raw["slides"], list):
+                slide_raws = [item for item in page_raw["slides"] if isinstance(item, dict)]
+            elif "slide" in page_raw and isinstance(page_raw["slide"], dict):
+                slide_raws = [page_raw["slide"]]
+            elif isinstance(page_raw, dict):
+                slide_raws = [page_raw]
+
+        synthetic = {
+            "version": raw.get("version", "4.0"),
+            "type": raw.get("type", "presentation"),
+            "slides": slide_raws,
+        }
+        page_validation = validate_dsl(synthetic)
+        for issue in page_validation.issues:
+            issue.path = f"{page_label}.{issue.path}" if issue.path else page_label
+        issues.extend(page_validation.issues)
+
+    return issues
 
 
 def main(argv: list[str] | None = None) -> int:

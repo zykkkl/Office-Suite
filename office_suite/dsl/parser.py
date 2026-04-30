@@ -113,7 +113,7 @@ def parse_element(raw: dict[str, Any]) -> Element:
     # extra 字段：收集所有非标准属性
     # 特殊处理：YAML 中的 "extra" 键会展开合并，避免嵌套
     EXCLUDE_KEYS = {
-        "type", "content", "source", "style", "position",
+        "type", "content", "source", "style", "style_ref", "position",
         "data_ref", "chart_type", "query", "prompt",
         "size", "opacity", "filter", "animation", "children",
     }
@@ -127,6 +127,7 @@ def parse_element(raw: dict[str, Any]) -> Element:
         type=raw.get("type", "text"),
         content=raw.get("content"),
         source=raw.get("source", raw.get("src")),
+        style_ref=raw.get("style_ref"),
         style=raw.get("style"),  # 可以是字符串引用或内联样式
         position=parse_position(position_raw) if isinstance(position_raw, dict) else None,
         data_ref=raw.get("data_ref"),
