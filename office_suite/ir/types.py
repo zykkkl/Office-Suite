@@ -138,8 +138,50 @@ class IRStyle:
     shadow: dict[str, Any] | None = None
     border: dict[str, Any] | None = None
     text_effect: dict[str, Any] | None = None
+    # 文本效果扩展
+    text_outline: dict[str, Any] | None = None      # 描边 {color, width, dash}
+    text_reflection: dict[str, Any] | None = None    # 倒影 {opacity, distance, blur, direction}
+    text_bevel: dict[str, Any] | None = None         # 斜面浮雕 {type, width, height, material}
+    letter_spacing: float | None = None              # 字距（pt）
+    word_spacing: float | None = None                # 词距（pt）
     # 主题引用
     theme_ref: str | None = None
+
+
+@dataclass
+class IRPathText:
+    """IR 路径文字 — 渲染器无关的路径文字描述
+
+    路径文字将文本沿曲线排列。渲染器根据 path_type 选择实现方式：
+      - arc / wave / circle 等预设：PPTX 用 presetTextWarp（单 shape）
+      - custom（任意 SVG 路径）：PPTX 逐字符旋转文本框
+      - HTML：原生 SVG <textPath>
+      - PDF / DOCX：降级为水平文本
+
+    路径类型：
+      - arc: 弧线（需 radius, start_angle, end_angle）
+      - wave: 波浪（需 amplitude, wavelength）
+      - custom: 自定义 SVG 路径（需 custom_path）
+
+    降级策略由 renderer/capability_map.py 中的 fallback_map 控制。
+    """
+    path_type: str = "arc"          # 预设或 custom
+    radius: float = 100.0           # 弧线半径（mm）
+    start_angle: float = 0.0        # 起始角度（度）
+    end_angle: float = 180.0        # 结束角度（度）
+    amplitude: float = 10.0         # 波浪振幅（mm）
+    wavelength: float = 50.0        # 波长（mm）
+    custom_path: str = ""           # SVG 路径数据（M x y C ...）
+    char_spacing: float = 0.0       # 额外字符间距（mm）
+    bend: float = 50.0              # 弯曲程度 0-100（presetTextWarp 用）
+
+
+# 合法路径类型
+VALID_PATH_TYPES = {
+    "arc", "arch_up", "wave", "circle",
+    "button", "chevron", "slant_up", "slant_down",
+    "triangle", "inflate", "deflate", "custom",
+}
 
 
 @dataclass
@@ -241,6 +283,8 @@ class IRNode:
     chart_type: str | None = None
     # 动画列表
     animations: list["IRAnimation"] = field(default_factory=list)
+    # 路径文字
+    path_text: IRPathText | None = None
     # 额外属性
     extra: dict[str, Any] = field(default_factory=dict)
     # 原始 DSL 路径（调试用）

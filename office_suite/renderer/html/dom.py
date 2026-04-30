@@ -181,7 +181,43 @@ class HTMLRenderer(BaseRenderer):
         if not src:
             return self._image_fallback(node)
         alt = escape(str(node.extra.get("alt", "")))
-        return f'<img src="{escape(src)}" style="{css}object-fit:contain;display:block" alt="{alt}" />'
+        filter_css = self._image_filter_css(node.extra.get("filter"))
+        return f'<img src="{escape(src)}" style="{css}object-fit:contain;display:block;{filter_css}" alt="{alt}" />'
+
+    @staticmethod
+    def _image_filter_css(filter_spec) -> str:
+        """将滤镜规范转换为 CSS filter 属性"""
+        if not filter_spec:
+            return ""
+        filters = filter_spec if isinstance(filter_spec, list) else [filter_spec]
+        css_parts = []
+        for f in filters:
+            if not isinstance(f, dict):
+                continue
+            ftype = f.get("type", "")
+            if ftype == "grayscale":
+                css_parts.append("grayscale(100%)")
+            elif ftype == "blur":
+                radius = f.get("radius", 5)
+                css_parts.append(f"blur({radius}px)")
+            elif ftype == "opacity":
+                val = f.get("value", 100)
+                css_parts.append(f"opacity({val / 100:.2f})")
+            elif ftype == "brightness":
+                val = f.get("value", 100)
+                css_parts.append(f"brightness({val / 100:.2f})")
+            elif ftype == "contrast":
+                val = f.get("value", 100)
+                css_parts.append(f"contrast({val / 100:.2f})")
+            elif ftype == "duotone":
+                # CSS 无原生 duotone，降级为 grayscale
+                css_parts.append("grayscale(100%)")
+            elif ftype == "biLevel":
+                # CSS 无原生 biLevel，降级为高对比度
+                css_parts.append("contrast(300%)")
+        if css_parts:
+            return "filter:" + " ".join(css_parts) + ";"
+        return ""
 
     def _render_chart(self, node: IRNode, doc: IRDocument) -> str:
         """渲染基础 SVG 图表"""

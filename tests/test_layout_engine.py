@@ -338,6 +338,191 @@ def test_mixed_layout():
 
 
 # ============================================================
+# Cassowary Simplex 求解器测试
+# ============================================================
+
+def test_simplex_multi_variable():
+    """多变量等式约束 — simple求解器联动"""
+    section("Simplex 多变量联动")
+
+    from office_suite.engine.layout.constraint import Solver, eq, le, ge, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 0.0)
+    y = solver.add_variable("y", 0.0)
+    w = solver.add_variable("w", 50.0)
+    h = solver.add_variable("h", 30.0)
+
+    # right = x + w
+    solver.add_constraint(eq(
+        solver.get_variable("right") or solver.add_variable("right"),
+        x + w,
+    ))
+    # bottom = y + h
+    solver.add_constraint(eq(
+        solver.get_variable("bottom") or solver.add_variable("bottom"),
+        y + h,
+    ))
+    # right == 150 (x + 50 == 150 → x == 100)
+    solver.add_constraint(eq(
+        solver.get_variable("right"),
+        150.0,
+    ))
+    # bottom == 80 (y + 30 == 80 → y == 50)
+    solver.add_constraint(eq(
+        solver.get_variable("bottom"),
+        80.0,
+    ))
+
+    solver.solve()
+    check("x = 100", x.value == 100, f"x={x.value}")
+    check("y = 50", y.value == 50, f"y={y.value}")
+    check("right = 150", solver.get_variable("right").value == 150)
+
+
+def test_simplex_inequality():
+    """不等式约束求解"""
+    section("Simplex 不等式约束")
+
+    from office_suite.engine.layout.constraint import Solver, eq, le, ge, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 0.0)
+    w = solver.add_variable("w", 100.0)
+
+    # x >= 10
+    solver.add_constraint(ge(x, 10.0))
+    # x + w <= 200
+    solver.add_constraint(le(x + w, 200.0))
+    # w == 100
+    solver.add_constraint(eq(w, 100.0))
+
+    solver.solve()
+    check("x >= 10", x.value >= 10, f"x={x.value}")
+    check("x + w <= 200", x.value + w.value <= 200.01, f"x+w={x.value + w.value}")
+    check("w == 100", w.value == 100, f"w={w.value}")
+
+
+def test_stay_constraint():
+    """Stay 约束 — 变量倾向保持当前值"""
+    section("Stay 约束")
+
+    from office_suite.engine.layout.constraint import Solver, eq, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 50.0)
+    y = solver.add_variable("y", 80.0)
+
+    # 添加 stay（WEAK 优先级，x 倾向保持 50）
+    solver.add_stay(x, Priority.WEAK)
+    solver.add_stay(y, Priority.WEAK)
+
+    # 只添加一条 REQUIRED 约束：x + y == 200
+    solver.add_constraint(eq(x + y, 200.0, Priority.REQUIRED))
+
+    solver.solve()
+    check("x + y == 200", abs(x.value + y.value - 200) < 0.01,
+          f"x+y={x.value + y.value}")
+    # stay 使两个变量被均匀推动（从 50+80=130 均分 70 的差距）
+    check("x 被推动到合理值", 80 < x.value < 130, f"x={x.value}")
+    check("y 被推动到合理值", 70 < y.value < 120, f"y={y.value}")
+
+
+def test_priority_conflict():
+    """优先级冲突 — REQUIRED 优先于 STRONG"""
+    section("优先级冲突解决")
+
+    from office_suite.engine.layout.constraint import Solver, eq, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 0.0)
+
+    # REQUIRED: x == 100
+    solver.add_constraint(eq(x, 100.0, Priority.REQUIRED))
+    # STRONG: x == 200（与 REQUIRED 冲突，应被违反）
+    solver.add_constraint(eq(x, 200.0, Priority.STRONG))
+
+    solver.solve()
+    check("REQUIRED x=100 优先", x.value == 100, f"x={x.value}")
+
+
+def test_priority_cascade():
+    """多级优先级级联 — REQUIRED → STRONG → WEAK"""
+    section("优先级级联求解")
+
+    from office_suite.engine.layout.constraint import Solver, eq, ge, le, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 0.0)
+    y = solver.add_variable("y", 0.0)
+
+    # REQUIRED: x + y == 200
+    solver.add_constraint(eq(x + y, 200.0, Priority.REQUIRED))
+
+    # STRONG: x >= 80
+    solver.add_constraint(ge(x, 80.0, Priority.STRONG))
+
+    # WEAK: stay x at initial 0（但被 REQUIRED + STRONG 推动）
+    solver.add_stay(x, Priority.WEAK)
+    solver.add_stay(y, Priority.WEAK)
+
+    solver.solve()
+    check("x + y == 200", abs(x.value + y.value - 200) < 0.01,
+          f"x+y={x.value + y.value}")
+    check("x >= 80 (STRONG)", x.value >= 80, f"x={x.value}")
+
+
+def test_edit_variable():
+    """Edit 变量 — suggest_value 增量重解"""
+    section("Edit 变量")
+
+    from office_suite.engine.layout.constraint import Solver, eq, Priority
+
+    solver = Solver()
+    x = solver.add_variable("x", 50.0)
+    y = solver.add_variable("y", 50.0)
+
+    solver.add_edit_variable(x)
+    solver.add_constraint(eq(x + y, 200.0, Priority.REQUIRED))
+
+    # 第一次求解
+    solver.solve()
+    check("初始 x+y=200", abs(x.value + y.value - 200) < 0.01)
+
+    # suggest x=120 → y 应变为 80
+    solver.suggest_value(x, 120.0)
+    solver.solve()
+    check("suggest 后 x=120", x.value == 120, f"x={x.value}")
+    check("联动 y=80", abs(y.value - 80) < 0.01, f"y={y.value}")
+
+
+def test_centering_constraint():
+    """居中约束 — center_x = parent.width / 2"""
+    section("居中约束求解")
+
+    from office_suite.engine.layout.constraint import Solver, eq, make_expression, Priority
+
+    solver = Solver()
+    pw = solver.add_variable("parent.width", 254.0)
+
+    x = solver.add_variable("x", 0.0)
+    w = solver.add_variable("w", 100.0)
+    cx = solver.add_variable("center_x", 0.0)
+
+    # center_x = x + w/2
+    solver.add_constraint(eq(make_expression(cx), make_expression(x) + make_expression(w, 0.5)))
+    # center_x = parent.width / 2
+    solver.add_constraint(eq(make_expression(cx), make_expression(pw, 0.5)))
+    # w == 100
+    solver.add_constraint(eq(make_expression(w), 100.0))
+
+    solver.solve()
+    expected_x = (254.0 - 100.0) / 2
+    check(f"x = 居中 ({expected_x})", abs(x.value - expected_x) < 0.01, f"x={x.value}")
+    check("center_x = 127", abs(cx.value - 127.0) < 0.01, f"cx={cx.value}")
+
+
+# ============================================================
 # 运行
 # ============================================================
 
@@ -354,6 +539,13 @@ if __name__ == "__main__":
     test_constraint_resolve()
     test_pptx_renderer_integration()
     test_mixed_layout()
+    test_simplex_multi_variable()
+    test_simplex_inequality()
+    test_stay_constraint()
+    test_priority_conflict()
+    test_priority_cascade()
+    test_edit_variable()
+    test_centering_constraint()
 
     print(f"\n{'='*60}")
     print(f"  结果: {_pass_count} 通过, {_fail_count} 失败")

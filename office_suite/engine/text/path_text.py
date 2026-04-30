@@ -34,7 +34,7 @@ class PathPoint:
 @dataclass
 class PathTextConfig:
     """路径文字配置"""
-    path_type: str = "arc"      # arc / wave / custom
+    path_type: str = "arc"      # 预设类型或 custom
     radius: float = 100.0       # 弧线半径（mm）
     start_angle: float = 0.0    # 起始角度（度）
     end_angle: float = 180.0    # 结束角度（度）
@@ -42,6 +42,26 @@ class PathTextConfig:
     wavelength: float = 50.0    # 波长（mm）
     custom_path: str = ""       # SVG 路径数据（M x y C ...）
     char_spacing: float = 0.0   # 字符间距（mm）
+    bend: float = 50.0          # 弯曲程度 0-100（presetTextWarp 用）
+
+
+# path_type → PPTX presetTextWarp 映射
+PATH_TYPE_TO_PPTX_PRESET = {
+    "arc": "textArchDown",
+    "arch_up": "textArchUp",
+    "wave": "textWave1",
+    "circle": "textCircle",
+    "button": "textButton",
+    "chevron": "textChevron",
+    "slant_up": "textSlantUp",
+    "slant_down": "textSlantDown",
+    "triangle": "textTriangle",
+    "inflate": "textInflate",
+    "deflate": "textDeflate",
+}
+
+# 需要逐字符放置的路径类型（无对应 presetTextWarp）
+CHAR_PLACEMENT_TYPES = {"custom"}
 
 
 # ============================================================
@@ -300,14 +320,21 @@ def to_pptx_placements(
     Returns:
         字符放置列表
     """
-    if config.path_type == "arc":
-        points = generate_arc_points(
-            config.radius, config.start_angle, config.end_angle,
-        )
-    elif config.path_type == "wave":
-        points = generate_wave_points(
-            config.amplitude, config.wavelength, config.wavelength * 2,
-        )
+    if config.path_type in PATH_TYPE_TO_PPTX_PRESET:
+        # 标准预设路径：用弧线近似生成字符位置（供逐字符模式备用）
+        if config.path_type in ("arc", "arch_up"):
+            points = generate_arc_points(
+                config.radius, config.start_angle, config.end_angle,
+            )
+        elif config.path_type == "wave":
+            points = generate_wave_points(
+                config.amplitude, config.wavelength, config.wavelength * 2,
+            )
+        else:
+            # 其他预设：用弧线近似
+            points = generate_arc_points(
+                config.radius, config.start_angle, config.end_angle,
+            )
     elif config.custom_path:
         points = parse_svg_path(config.custom_path)
     else:

@@ -1,65 +1,66 @@
-# Office Suite 4.0
+# Office Suite 4.0 — Presentation & Document Generation
 
 ## Scope
 
-Use this skill for Office document generation from the Office Suite YAML DSL, especially PowerPoint/PPTX generation. The runtime path is:
+Generate professional presentations and documents from YAML DSL. Runtime path:
 
 ```text
 YAML DSL -> Parser -> IR Document -> Renderer -> .pptx / .docx / .xlsx / .pdf / .html
 ```
 
-PPT generation has extra workflow requirements because presentation quality depends heavily on page-level planning and layout. DOCX, XLSX, PDF, and HTML generation remain supported through the same parser, compiler, and renderer pipeline.
+## Core Workflow: Generate-All-First, Check-Once
+
+For every generation task, adopt a **generate-all-first, then check-once** strategy:
+
+1. Complete ALL files (outline, design, deck.yml, every page) before any rendering or validation.
+2. Never render, check, or deliver one page at a time.
+3. Only after the complete deck is written, run the unified quality gate.
+4. Fix issues in batch, then re-render.
+
+## Agent Orchestration
+
+| Role | Scope | Prohibited |
+|------|-------|-----------|
+| **Main Agent** | Visual design, structure contract, style contract, `deck.yml` construction, quality gate, final delivery | Delegating design decisions to sub-agents before `deck.yml` exists |
+| **Sub-Agent** | Generating individual `.page` / `.yml` slide files under `pages/` only | Making visual design choices, changing color/font rules, modifying `deck.yml` or `design.md` |
+
+Before the `deck.yml` and `design.md` are finalized, **strictly prohibited** from assigning page-generation tasks to sub-agents.
 
 ## PPT Generation Workflow
 
-For every new PPT task, create an isolated project directory and keep all task artifacts together:
+### Step 0: Read Guidelines
 
-```text
-output/<deck-name>/
-  outline.md          # Content plan, one section per slide
-  design.md           # Visual system and layout rules
-  deck.yml            # Main presentation entry file
-  pages/
-    001_cover.yml     # One YAML file per slide
-    002_agenda.yml
-    003_content.yml
-```
-
-Do not put the whole deck into one giant `slides:` YAML unless the user explicitly asks for a single-file example. The preferred format is a small main `deck.yml` plus one YAML file per slide under `pages/`.
-
-Before generating or revising any PPT/PPTX YAML, you MUST read `office_suite/guidelines/ppt_layout_system.md` first and follow it. Do not proceed to YAML generation or layout revision before reading it.
+Before generating any PPT content, read `office_suite/guidelines/ppt_layout_system.md`. Do not proceed without reading it.
 
 ### Step 1: Understand Inputs
 
-- Read all user-provided source files first.
-- Identify language, audience, page count, required data, tone, and visual constraints.
-- If the user gives only a topic, create reasonable content; use browsing only when current or source-specific accuracy is required.
-- Decide the content mode:
-  - `outline`: the user supplied a page plan, chapter tree, or structured outline.
-  - `summary`: the user supplied a long document and wants it distilled into slides.
-  - `research`: the user supplied only a topic or sparse requirements and expects content to be developed.
-- Decide the visual mode:
-  - `creative`: no visual reference; create a suitable design from scenario, audience, and topic.
-  - `reference`: user supplied screenshots, a website, images, or a style sample.
-  - `template`: user explicitly asked to follow a provided template or existing PPT.
-- Record these mode decisions in `outline.md` and `design.md` so later YAML generation has stable instructions.
+- Read all user-provided source files.
+- Identify language, audience, page count, required data, tone, visual constraints.
+- Decide the **content mode**:
+  - `outline`: user supplied a page plan, chapter tree, or structured outline.
+  - `summary`: user supplied a long document and wants it distilled into slides.
+  - `research`: user supplied only a topic or sparse requirements.
+- Decide the **visual mode**:
+  - `creative`: no visual reference; create from scenario, audience, topic.
+  - `reference`: user supplied screenshots, website, images, or style sample.
+  - `template`: user explicitly asked to follow a provided template.
 
-### Step 2: Write `outline.md`
+Record these decisions in `outline.md` and `design.md`.
+
+### Step 2: Write Structure Contract (`outline.md`)
 
 Persist a page-level outline before writing YAML. Include:
 
 - Deck title and target audience
 - Content mode and expansion policy
 - Slide count and slide-by-slide story flow
-- For each slide: title, key message, content bullets, suggested visual treatment, and any source/citation notes
-- Explicit notes for charts, tables, diagrams, images, or callouts
+- For each slide: title, key message (one single message per slide), content bullets, suggested layout pattern, visual treatment notes
+- Explicit notes for charts, tables, diagrams, images, callouts
 
-Expansion policy:
-
-- If the user asks to follow provided content exactly, preserve their structure and wording as much as possible. Do not add unsupported claims.
-- If the user asks for enrichment, add supporting examples, data, and framing, and mark what was supplemented.
-- If the user is silent, stay conservative: clarify structure, condense content for slides, and only add obvious missing structural pages such as cover or closing when appropriate.
-- For source-derived decks, every important claim, number, or quote in the outline should trace back to the provided source or a cited URL.
+**Expansion policy:**
+- If the user asks to follow provided content exactly, preserve structure and wording.
+- If the user asks for enrichment, add supporting examples and data, marking what was supplemented.
+- If the user is silent, stay conservative: clarify structure and only add obvious missing structural pages.
 
 Recommended outline shape:
 
@@ -72,112 +73,189 @@ Recommended outline shape:
 - Expansion policy:
 - Page count:
 
-## Page 1 [cover]
+## Page 1 [cover] — Layout: cover_split
 - Title:
 - Key message:
 - Content:
 - Visual:
 
-## Page 2 [content]
+## Page 2 [content] — Layout: card_grid_3x2
 - Title:
 - Key message:
 - Content:
 - Visual:
-- Source:
 ```
 
-### Step 3: Write `design.md`
+### Step 3: Write Style Contract (`design.md`)
 
-Persist the visual design before writing YAML. Include:
+Persist the visual design system before writing YAML. Must include:
 
-- Canvas: 16:9, `254mm x 142.875mm`
-- Visual mode and reference/template scope, if any
-- Typography scale and font choices
-- Color palette with exact hex values
-- Reusable page patterns: cover, section, content, chart/table, closing
-- Grid, margins, spacing, card radius, and image treatment
-- Rules for text density, hierarchy, contrast, and alignment
-- Theme YAML snippet compatible with the Office Suite DSL `styles:` field
-- A task-specific risk checklist: colors to avoid, likely layout failure points, minimum readable font sizes, and any scenario-specific decoration limits
+#### 3.1 Canvas
+- 16:9, `254mm x 142.875mm`
+- Background color, margin system
 
-When a visual reference is provided, analyze it by role rather than copying it: color roles, type hierarchy, spacing rhythm, image treatment, table/chart style, and recurring layout patterns. If exact replication is requested, reproduce the user-provided content and layout as closely as the Office Suite DSL allows; otherwise, adapt the visual language to the new content.
+#### 3.2 Color Palette (strict limit)
+Define exactly 5-6 colors:
+```text
+bg_primary:    #0A0E1A   (page background)
+bg_surface:    #12182B   (card/panel background)
+border:        #1E2642   (dividers, card borders)
+accent:        #C9A84C   (titles, highlights, primary emphasis)
+text_primary:  #E8E4DC   (body text)
+text_muted:    #6B7280   (labels, captions, page numbers)
+```
+All emphasis must use opacity/brightness variations of these colors. Do not add new hues.
 
-### Step 4: Generate YAML Files
+#### 3.3 Typography Scale (strict 4-level)
 
-Write files in this order:
+| Level | Size | Weight | Use |
+|-------|------|--------|-----|
+| H1 | 32-36pt | 700 | Page titles |
+| H2 | 14-16pt | 700 | Card titles, section headers |
+| Body | 12-13pt | 400 | Descriptions, bullet text |
+| Caption | 9-10pt | 400 | Labels, tags, page markers |
+
+Never use more than 4 distinct font sizes on a single slide.
+
+#### 3.4 Layout Pattern Library
+
+For each slide, pick one pattern from the library:
+
+| Pattern | Use Case | Structure |
+|---------|----------|-----------|
+| `cover_center` | Cover/closing | Full-bleed bg, centered title block, decorative lines |
+| `title_body` | Simple content | Title band + body text block |
+| `card_grid_2x2` | 4 items | 2x2 equal cards with title + description |
+| `card_grid_3x2` | 6 items | 3x2 equal cards (use for races, features) |
+| `card_row_4` | 4 items horizontal | 4 equal cards in one row |
+| `split_50_50` | Two sections | Left panel + right panel |
+| `timeline_h6` | 6-step journey | Horizontal axis + 6 nodes above/below |
+| `three_column` | 3 comparable items | 3 equal cards side by side |
+| `hero_card_left` | Character/profile | Large left card + right attribute grid |
+| `panel_with_grid` | Complex data | Large panel containing internal grid |
+
+#### 3.5 Spacing Rhythm
+```text
+Page margins: 20mm L/R, 16mm top, 12mm bottom
+Title band: y 16-32mm (title + divider)
+Body region: y 40-116mm
+Footer: y 124-132mm
+Card gap: 4mm
+Group gap: 8mm
+Card internal padding: 4mm
+```
+
+#### 3.6 Risk Checklist
+- [ ] No more than 6 colors total
+- [ ] No more than 4 font sizes per slide
+- [ ] Body text minimum 12pt
+- [ ] All cards use identical radius (3mm)
+- [ ] Page markers: `x: 196mm, y: 126mm, width: 38mm`, align:right
+
+### Step 4: Generate YAML Files (Generate-All-First)
+
+Write files in this order, all in one batch:
 
 1. `deck.yml`
-2. `pages/001_*.yml`, `pages/002_*.yml`, etc. in slide order
+2. `pages/001_*.yml` through `pages/NNN_*.yml` (can use parallel sub-agents for pages)
 
-Main file example:
-
+Main file:
 ```yaml
 version: "4.0"
 type: presentation
 title: "Presentation Title"
 theme: default
-
 styles:
-  title:
-    font: { family: "Microsoft YaHei UI", size: 34, weight: 700, color: "#0F172A" }
+  h1:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#C9A84C" }
+  h2:
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#E8E4DC" }
   body:
-    font: { family: "Microsoft YaHei UI", size: 16, weight: 400, color: "#334155" }
-
+    font: { family: "Microsoft YaHei UI", size: 13, weight: 400, color: "#E8E4DC" }
+  caption:
+    font: { family: "Microsoft YaHei UI", size: 10, weight: 400, color: "#6B7280" }
 pages:
   - pages/001_cover.yml
-  - pages/002_agenda.yml
+  - pages/002_content.yml
 ```
 
-Page file example:
+Page file rules:
+- Every slide must pick a layout pattern from the library.
+- Related elements must share a card container (`rounded_rectangle` with `bg_surface` fill).
+- Card internal layout: title (H2) → divider → body (Body) → optional caption (Caption).
+- Use `align: center`, `vertical_align: middle`, `margin: 0` for centered content inside cards.
+- Never hand-tune coordinates to simulate centering.
 
-```yaml
-layout: blank
-background:
-  color: "#FFFFFF"
-elements:
-  - type: text
-    content: "Presentation Title"
-    position: { x: 22mm, y: 34mm, width: 160mm, height: 18mm }
-    style:
-      font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#0F172A" }
+### Step 5: Unified Quality Gate
+
+After ALL files are written, run:
+
+```bash
+python -m office_suite.tools.check output/<deck-name>/deck.yml --render pptx --output-dir output/<deck-name>/check
 ```
 
-The parser also accepts legacy single-file documents with top-level `slides:` for backward compatibility.
+Blocking issues (must fix):
+- YAML parse errors, missing page files
+- IR validation errors, failed render
+- Out-of-bounds content
+- Confirmed text overlap or truncation
 
-## Layout Requirements
+Review items (consciously accept or fix):
+- Font hierarchy warnings (>4 sizes)
+- Color count warnings (>6 colors)
+- Spacing warnings (intentional compact layout is acceptable)
+- Decorative overlap
 
-- Use the 16:9 coordinate system: width `254mm`, height `142.875mm`.
-- Never use `190.5mm` as a slide height for 16:9 PPTs.
-- Keep `y + height <= 142.875mm` and `x + width <= 254mm`.
-- Prefer stable grids and repeated positions across related slides.
-- Estimate text box size before writing YAML. Line height is roughly `font size x 1.3`; allocate enough height for all lines.
-- Use `wrap: false` or an equivalent custom flag only for text intended to stay on one line; otherwise size text boxes for wrapping.
-- Avoid overlapping readable text with shapes, images, or other text.
-- Avoid excessive font-size reduction to hide overflow. Condense content or redesign the layout first.
-- For content-heavy slides, split into multiple slides instead of crowding the page.
-- For centered badges, numbers, chips, and card labels, use explicit text layout fields such as `align: center`, `vertical_align: middle`, and `margin: 0`; do not rely on hand-tuned coordinates.
+Fix order:
+1. Syntax and missing-file errors
+2. Out-of-bounds content
+3. Text overflow and unreadable font sizes
+4. Text occlusion
+5. Misalignment and inconsistent spacing
+
+## Layout System (Normative)
+
+### Canvas
+- 16:9, width: 254mm, height: 142.875mm
+- Origin: top-left
+- Constraints: `x + width <= 254mm`, `y + height <= 142.875mm`
+
+### Page Regions
+```text
+Title band:     y 16-32mm
+Body region:    y 40-116mm
+Footer:         y 124-132mm
+```
+
+### Text Layout Fields
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `align` | left, center, right | Horizontal paragraph alignment |
+| `vertical_align` | top, middle, bottom | Text frame vertical anchoring |
+| `margin` | mm | Uniform internal margin |
+
+For centered badges/labels inside shapes: set text box equal to shape bounds + `align: center` + `vertical_align: middle` + `margin: 0`.
+
+### Card System
+- Cards are containers, not decoration.
+- Fill: `bg_surface`, radius: 3mm, border: 1pt `border` color.
+- Do not use cards inside cards.
+- Card text left-aligned for sentences; center-aligned for compact tiles.
+
+### Repeated Elements
+Repeated cards must be generated as a system:
+- Same object type, width, height, internal alignment.
+- Consistent gaps (4mm).
+- Complete sequences. If the outline says 6 modules, render exactly 6.
 
 ## Visual Quality Rules
 
-- Use real layout: hierarchy, alignment, rhythm, whitespace, and contrast.
-- Make cover, section, and closing pages visually distinct.
-- Use images only when they support the page message. Prefer relevant full-bleed or cropped imagery over decorative placeholders.
-- Build charts/tables with native DSL elements instead of screenshots.
-- Keep palettes controlled: usually 1 primary, 1 accent, neutrals, and optional semantic colors.
-- Use consistent title, footer, page number, and recurring navigation placement when present.
-- Use several compatible content-page patterns across a deck so pages do not all share the same arrangement.
-- For table-of-contents pages, treat the page as navigation/information design, not a plain bullet list.
-- If chapter divider pages are used, apply them consistently across all major chapters.
-- Keep each content slide centered on one main message. Move secondary detail to another slide rather than shrinking text below readable size.
-- In data slides, make the conclusion visually dominant and the chart/table supporting, not the reverse.
-
-## PPT Asset Rules
-
-- Prefer user-provided images and source materials when they are relevant and high quality.
-- If external images are needed, choose images that match `design.md` and are directly connected to the slide message.
-- Do not replace an image-dependent layout with a generic gradient, solid block, or decorative shape unless the design explicitly calls for it.
-- Do not use screenshots of charts or tables when native DSL chart/table elements can express the same information.
-- Keep image paths resolvable from the generated project. If assets are local, keep them under the same project directory.
+- **One message per slide**: Every content slide must have one dominant message. Move secondary detail to another slide.
+- **Density limit**: Body text max 40-50 Chinese characters or ~80 English words per slide.
+- **Data prominence**: In data slides, make the conclusion visually dominant; chart/table is supporting evidence.
+- **Palette control**: Exactly 1 primary, 1 accent, neutrals, optional semantic colors. Never exceed 6 colors.
+- **Typography control**: Max 4 font sizes per slide. Minimum body 12pt.
+- **Alignment**: Use explicit layout fields for internal positioning; use coordinates only for container placement.
 
 ## Build and Convert
 
@@ -191,165 +269,51 @@ ir_doc = compile_document(doc)
 PPTXRenderer().render(ir_doc, "output/my_deck/my_deck.pptx")
 ```
 
-CLI-style usage:
-
+CLI:
 ```bash
 python -m office_suite build output/my_deck/deck.yml -o output/my_deck/my_deck.pptx
 ```
 
-For non-PPT formats, use the matching renderer or conversion helper:
-
+For non-PPT formats:
 ```python
 from office_suite.tools.convert import convert_dsl_file
-
 convert_dsl_file("input.yml", "output.docx", "docx")
 convert_dsl_file("input.yml", "output.xlsx", "xlsx")
 convert_dsl_file("input.yml", "output.pdf", "pdf")
 convert_dsl_file("input.yml", "output.html", "html")
 ```
 
-## PPT Verification
+## Non-PPT Formats
 
-After YAML generation:
+### DOCX
+- Single YAML file, `type: document`
+- Clear heading hierarchy, concise paragraphs, tables for comparisons.
+- Verify: `python -m office_suite.tools.check document.yml --render docx`
 
-1. Parse `deck.yml`.
-2. Compile to IR.
-3. Compare the generated pages against `outline.md` and `design.md`: page count, slide order, promised module/step/day counts, and any required visual treatments must match unless a documented revision explains the change.
-4. Run available validation/lint checks. Prefer the unified quality gate:
-   `python -m office_suite.tools.check output/<deck-name>/deck.yml --render pptx --output-dir output/<deck-name>/check`
-5. Render PPTX.
-6. Fix parse errors, bounds issues, text overflow, occlusion, poor contrast, missing sequence items, outline/page mismatches, and obvious whitespace imbalance.
+### XLSX
+- Single YAML file, `type: spreadsheet`
+- Model data as tables; use charts only for trends/comparisons.
+- Preserve numeric types, dates, percentages.
 
-Warnings about overflow, occlusion, underfilled text boxes, or out-of-bounds content should be treated as real visual defects unless the issue is intentional decoration. After each fix pass, re-run the relevant check or render step until there are no unexpected errors or warnings.
+### PDF
+- Fixed layout, print-safe margins, explicit block sizing.
+- High-resolution images; avoid blurry screenshots.
 
-Fix order:
+### HTML
+- `type: presentation` for slide-like sections, `type: document` for document-like pages.
+- Semantic structure, responsive readability.
 
-1. Syntax and missing-file errors.
-2. Elements outside the slide bounds.
-3. Text overflow and unreadable font sizes.
-4. Text or data occlusion.
-5. Misalignment, inconsistent common elements, and unbalanced whitespace.
-
-When fixing layout, adjust related elements together. For example, if a text box grows, also resize the backing shape or adjacent visual group so the page still looks intentional.
-
-## Supported Formats
-
-- `.pptx` - PowerPoint
-- `.docx` - Word
-- `.xlsx` - Excel
-- `.pdf` - PDF
-- `.html` - HTML
-
-## DOCX Generation
-
-Use DOCX when the user asks for a report, proposal, memo, article, contract-style draft, handbook, documentation, or any Word document.
-
-Recommended file organization:
+## Project Directory Structure
 
 ```text
-output/<doc-name>/
-  source_notes.md       # Optional notes, extracted source material, or drafting plan
-  document.yml          # Single YAML source
-  <doc-name>.docx
+output/<deck-name>/
+  outline.md          # Structure contract
+  design.md           # Style contract (palette, typography, layout patterns, spacing)
+  deck.yml            # Main entry
+  pages/
+    001_cover.yml
+    002_content.yml
+    ...
+  <deck-name>.pptx    # Rendered output
+  check/              # Quality gate outputs
 ```
-
-Authoring rules:
-
-- Use a single YAML file by default.
-- Use `type: document` when the output is primarily a Word document.
-- Organize content into logical sections using the existing document/slide-like page structure accepted by the renderer.
-- Prefer clear heading hierarchy, concise paragraphs, tables for structured comparisons, and figures only when they support the text.
-- Do not apply PPT-specific canvas rules such as one YAML per slide or `254mm x 142.875mm` unless exporting the same content as a presentation.
-- Keep styles conservative: readable body font, consistent heading sizes, enough table padding, and strong contrast.
-
-Verification:
-
-- Parse and compile the YAML.
-- Run `python -m office_suite.tools.check document.yml --render docx`.
-- Open or inspect the rendered document when possible; check heading order, table fit, missing images, and pagination-sensitive content.
-
-## XLSX Generation
-
-Use XLSX when the user asks for spreadsheets, financial models, trackers, schedules, tables, calculators, dashboards, data cleanup, or workbook-style output.
-
-Recommended file organization:
-
-```text
-output/<workbook-name>/
-  workbook.yml          # Single YAML source
-  data/                 # Optional CSV/TSV/source data
-  <workbook-name>.xlsx
-```
-
-Authoring rules:
-
-- Use a single YAML file by default.
-- Use `type: spreadsheet` when the output is primarily an Excel workbook.
-- Model data as tables first; use charts only when they clarify trends, comparisons, composition, or variance.
-- Preserve numeric types, dates, percentages, and currency semantics instead of writing everything as text.
-- Prefer formulas for calculated columns and summary metrics when the workbook should remain editable.
-- Keep layouts practical: frozen-style header thinking, clear sheet titles, readable column widths, restrained colors, and consistent number formats.
-- Avoid presentation-only decoration. XLSX output should be functional and easy to audit.
-
-Verification:
-
-- Parse and compile the YAML.
-- Run `python -m office_suite.tools.check workbook.yml --render xlsx`.
-- Check that tables have the expected row/column counts, formulas are present, key numbers are formatted correctly, and charts reference the intended data.
-
-## PDF Generation
-
-Use PDF when the user asks for a fixed-layout handout, export, printable report, certificate, flyer, shareable final document, or a PDF version of a presentation/document.
-
-Recommended file organization:
-
-```text
-output/<pdf-name>/
-  document.yml          # Single YAML source, or deck.yml for presentation-derived PDF
-  <pdf-name>.pdf
-```
-
-Authoring rules:
-
-- Use a single YAML file for document-style PDFs.
-- If the PDF is exported from a presentation, the PPT multi-file workflow may be used and then rendered to PDF from the compiled IR.
-- Treat PDF as fixed layout: explicitly size important blocks, leave print-safe margins, and avoid relying on viewer reflow.
-- Use vector-like shapes, native text, tables, and charts where possible.
-- Use high-resolution images; avoid blurry screenshots when the content can be recreated with text/table/chart elements.
-
-Verification:
-
-- Parse and compile the YAML.
-- Run `python -m office_suite.tools.check document.yml --render pdf`.
-- Review page count, clipped content, table overflow, image quality, and whether printable margins are acceptable.
-
-## HTML Generation
-
-Use HTML when the user asks for a web preview, interactive-ish document, browser-readable export, static page, or an HTML version of the generated content.
-
-Recommended file organization:
-
-```text
-output/<html-name>/
-  page.yml              # Single YAML source
-  assets/               # Optional local images or media
-  <html-name>.html
-```
-
-Authoring rules:
-
-- Use a single YAML file by default.
-- Choose `type: presentation` for slide-like HTML sections, or `type: document` for document-like pages.
-- Keep assets colocated and use paths that the renderer can resolve.
-- Ensure text hierarchy, contrast, and responsive readability; do not assume PPT coordinates will produce a good web page unless the goal is slide preview.
-- Prefer semantic structure and native text over rasterized text images.
-
-Verification:
-
-- Parse and compile the YAML.
-- Run `python -m office_suite.tools.check page.yml --render html`.
-- Open the HTML when possible and check layout, missing assets, text overflow, and mobile/desktop readability.
-
-## Non-PPT Rule
-
-The multi-file `deck.yml` + `pages/` workflow, mandatory `outline.md`, and mandatory `design.md` are preferred for PPT/PPTX only. For DOCX, XLSX, PDF, and HTML, use their format-specific guidance above and keep the existing single-file YAML workflow unless the user explicitly requests otherwise.

@@ -835,6 +835,18 @@ def test_brightness_filter(tmp_path):
     assert "lum" in slide_xml
 
 
+def test_contrast_filter(tmp_path):
+    """对比度滤镜"""
+    img_path = _make_test_image(tmp_path, "contrast.png")
+    output = _render_filter_dsl(tmp_path, img_path, """            type: contrast
+            value: 50""", "contrast.pptx")
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "lum" in slide_xml
+
+
 def test_multi_filter_stack(tmp_path):
     """多滤镜叠加：灰度 + 透明度"""
     img_path = _make_test_image(tmp_path, "multi.png")
@@ -891,6 +903,130 @@ slides:
 
 
 # ============================================================
+# 文本效果测试（描边/倒影/斜面浮雕/字距）
+# ============================================================
+
+def test_text_outline(tmp_path):
+    """文本描边"""
+    dsl = """
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "描边文字"
+        position: { x: 40mm, y: 40mm, width: 180mm, height: 40mm }
+        style:
+          font: { size: 24, color: "#FFFFFF" }
+          text_effect:
+            stroke:
+              color: "#FF0000"
+              width: 2.0
+              dash: "solid"
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "outline.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "FF0000" in slide_xml
+    assert "描边文字" in slide_xml
+
+
+def test_text_reflection(tmp_path):
+    """倒影效果"""
+    dsl = """
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "倒影文字"
+        position: { x: 40mm, y: 40mm, width: 180mm, height: 40mm }
+        style:
+          font: { size: 24 }
+          text_effect:
+            reflection:
+              opacity: 40
+              distance: 3
+              blur: 2
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "reflection.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "reflection" in slide_xml
+
+
+def test_text_bevel(tmp_path):
+    """斜面浮雕效果"""
+    dsl = """
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "浮雕文字"
+        position: { x: 40mm, y: 40mm, width: 180mm, height: 40mm }
+        style:
+          font: { size: 24 }
+          text_effect:
+            bevel:
+              type: "relaxedInset"
+              width: 3
+              height: 3
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "bevel.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "relaxedInset" in slide_xml
+    assert "bevel" in slide_xml
+
+
+def test_letter_spacing(tmp_path):
+    """字距效果"""
+    dsl = """
+version: "4.0"
+type: presentation
+slides:
+  - layout: blank
+    elements:
+      - type: text
+        content: "字距测试"
+        position: { x: 40mm, y: 40mm, width: 180mm, height: 40mm }
+        style:
+          font: { size: 20 }
+          text_effect:
+            letter_spacing: 3.0
+"""
+    doc = parse_yaml_string(dsl)
+    ir = compile_document(doc)
+    output = tmp_path / "spacing.pptx"
+    PPTXRenderer().render(ir, output)
+    assert output.exists()
+
+    with zipfile.ZipFile(output) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    assert "spc" in slide_xml
+    assert "spcPts" in slide_xml
+
+
+# ============================================================
 # 主函数
 # ============================================================
 
@@ -920,8 +1056,13 @@ def main():
         test_blur_filter(tmp_path)
         test_opacity_filter(tmp_path)
         test_brightness_filter(tmp_path)
+        test_contrast_filter(tmp_path)
         test_multi_filter_stack(tmp_path)
         test_no_filter(tmp_path)
+        test_text_outline(tmp_path)
+        test_text_reflection(tmp_path)
+        test_text_bevel(tmp_path)
+        test_letter_spacing(tmp_path)
 
     print(f"\n{'=' * 60}")
     print(f"  结果:  PASS={_pass_count}  FAIL={_fail_count}")

@@ -157,8 +157,20 @@ PDF + HTML 渲染器。30 项测试全部通过。
 
 | 命令 | 结果 | 状态 |
 |------|------|------|
-| `pytest -q` | 243 passed | ✅ |
+| `pytest -q` | 255 passed | ✅ |
 | `pytest -q tests/test_phase0.py tests/test_phase2.py` | 14 passed | ✅ |
+| `pytest -q tests/test_layout_engine.py tests/test_p1_enhancements.py` | 34 passed | ✅ |
+
+## 2026-04-30 修复记录
+
+| 修复项 | 状态 | 说明 |
+|--------|------|------|
+| 文本自适应 | ✅ | 恢复 `_fit_text_style_to_box`，过长文本自动缩小字号 |
+| 图片适配 | ✅ | 恢复 `_add_picture_with_fit`，支持 cover/contain/stretch |
+| 填充透明度 | ✅ | 恢复 `_apply_fill_alpha`，通过 `a:alpha` XML 注入 |
+| 发光效果 | ✅ | 恢复 `_apply_glow`，通过 `a:glow` XML 注入 |
+| 背景板分层 | ✅ | 恢复 `_render_background_board` 及图层渲染 |
+| 图片滤镜 | ✅ | 恢复 8 种滤镜：duotone/grayscale/biLevel/blur/opacity/brightness/contrast + 多效果叠加 |
 
 ## P0 增强功能
 
@@ -221,8 +233,103 @@ PDF + HTML 渲染器。30 项测试全部通过。
 | XLSX 冻结窗格缺失 | ✅ 已修复 | 支持 freeze_row / freeze_col |
 | 渲染器模块化不符合设计 | ✅ 已修复 | 创建 14 个 facade 模块 |
 
+## P1 骨架填充（2026-04-30）
+
+P1 特性从”骨架”升级为”已实现并集成到 PPTX 渲染器”：
+
+| 特性 | 文件 | 说明 |
+|------|------|------|
+| Cassowary 约束布局 | `engine/layout/constraint.py` | Variable/Term/Expression/Constraint/Solver 全实现 |
+| Flexbox 弹性布局 | `engine/layout/flex.py` | FlexItem/FlexLayout，支持 direction/justify/align/wrap/gap |
+| 12/24 列栅格系统 | `engine/layout/grid.py` | GridCell/GridTrack/GridLayout，支持 auto_place |
+| OKLCH 色彩空间 | `engine/style/color.py` | sRGB/OKLAB/OKLCH 双向转换 + 调色/互补/三色等工具函数 |
+| 布局解析桥接 | `renderer/layout_resolver.py` | LayoutResolver 统一桥接绝对/相对/grid/flex/constraint 五种布局模式 |
+| PPTX 集成 | `renderer/pptx/deck.py` | `_resolve_layout_if_needed` 自动检测 slide 布局模式并调用 resolver |
+
+| 测试 | 结果 |
+|------|------|
+| 布局引擎单元测试 | 21 passed ✅ |
+| P1 增强集成测试 | 13 passed ✅ |
+| 全量测试 | 253 passed ✅ |
+
+## Cassowary Simplex 求解器升级（2026-04-30）
+
+Cassowary 约束求解器从简化迭代实现升级为完整 Simplex 线性规划实现：
+
+| 特性 | 升级前 | 升级后 |
+|------|--------|--------|
+| 求解算法 | 迭代违反量分配 | 两阶段 Simplex LP 求解（Dantzig 最大减少规则） |
+| 优先级 | 单层求解 | 四级级联：REQUIRED(1000) > STRONG(800) > MEDIUM(500) > WEAK(250) |
+| Stay 约束 | 不支持 | 支持，变量倾向保持当前值（通过正/负偏差 + 目标函数实现） |
+| Edit 变量 | 不支持 | 支持，`suggest_value()` 触发增量重解 |
+| 不等式 | 简化处理 | 正式 Slack 变量，支持 `le()` / `ge()` |
+| 不可行处理 | 直接报错 | Phase 1 人工变量 + 最小违反解 |
+
+**新增测试（7 项）：**
+
+| 测试 | 说明 |
+|------|------|
+| `test_simplex_multi_variable` | 多变量等式约束联动（right = x + w, bottom = y + h） |
+| `test_simplex_inequality` | ge/le 不等式约束求解 |
+| `test_stay_constraint` | Stay 约束，变量在 REQUIRED 推动下被合理分配 |
+| `test_priority_conflict` | REQUIRED(100) 优先于 STRONG(200) 冲突 |
+| `test_priority_cascade` | REQUIRED → STRONG → WEAK 三级级联 |
+| `test_edit_variable` | suggest_value(x, 120) 触发 y 联动求解 |
+| `test_centering_constraint` | 居中约束：center_x = parent.width / 2 |
+
+| 测试 | 结果 |
+|------|------|
+| 布局引擎单元测试 | 28 passed ✅ |
+| 全量测试 | 262 passed ✅ |
+
+## P2 路径文字完善（2026-04-30）
+
+路径文字从骨架升级为已实现，遵循 IR 抽象模式（与 IRAnimation 同层）：
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| IR 抽象 | `ir/types.py` | `IRPathText` 数据结构 + `VALID_PATH_TYPES` 校验集 |
+| IR 编译 | `ir/compiler.py` | `_parse_path_text()` 验证/转换 DSL dict → 类型化 IRPathText |
+| 路径文字引擎 | `engine/text/path_text.py` | arc/wave/SVG路径生成 + 字符沿路径排列算法 |
+| PPTX 渲染集成 | `renderer/pptx/deck.py` | `_render_path_text` 读取 `node.path_text`（IRPathText），无需解析 raw dict |
+| DSL 支持 | `path_text` 字段经 IR 编译 | `path_text: { path_type, radius, start_angle, end_angle, amplitude, wavelength, custom_path, char_spacing }` |
+
+| 测试 | 结果 |
+|------|------|
+| 路径文字引擎单元测试 | 8 passed ✅ |
+| 端到端 DSL→IR→PPTX | 5 passed ✅ |
+| 全量测试 | 262 passed ✅ |
+
+## P2 优化：路径文字 + 滤镜（2026-04-30）
+
+### 路径文字优化
+
+标准路径（arc/wave/circle 等）改用 PPTX 原生 `presetTextWarp`（单 shape WordArt），仅 custom SVG 路径保留逐字符放置：
+
+| 优化项 | 说明 |
+|--------|------|
+| 新增路径类型 | `arch_up`, `circle`, `button`, `chevron`, `slant_up`, `slant_down`, `triangle`, `inflate`, `deflate` |
+| presetTextWarp 映射 | `PATH_TYPE_TO_PPTX_PRESET` 字典，11 种标准路径 → DrawingML presetTextWarp preset |
+| `_render_path_text_preset` | 标准路径用单 shape + `_apply_text_warp`，custom 用逐字符 |
+| bend 参数 | IRPathText/PathTextConfig 新增 `bend: float = 50.0`，控制 WordArt 弯曲程度 |
+| VALID_PATH_TYPES | 扩展至 12 种 |
+
+### 滤镜优化
+
+| 优化项 | 说明 |
+|--------|------|
+| HTML CSS filter | `dom.py` `_render_image` 支持 `filter` extra → CSS `filter` 属性 |
+| 支持类型 | grayscale, blur, opacity, brightness, contrast（duotone/biLevel 降级） |
+| contrast 测试 | 补充缺失的 `test_contrast_filter` |
+
+| 测试 | 结果 |
+|------|------|
+| presetTextWarp 测试 | 1 passed ✅ |
+| contrast 滤镜测试 | 1 passed ✅ |
+| 全量测试 | 264 passed ✅ |
+
 ## 下一步
-项目核心功能已就绪。后续重点从“能生成”转向“可维护、可追踪、可持续提升视觉质量”：PPTX 渲染器模块化、视觉回归 smoke test、DOCX/XLSX 结构化增强、Hub/Pipeline/Store 合同收敛。
+项目核心功能已就绪。后续重点从”能生成”转向”可维护、可追踪、可持续提升视觉质量”：PPTX 渲染器模块化、视觉回归 smoke test、DOCX/XLSX 结构化增强、Hub/Pipeline/Store 合同收敛。
 
 ## 生成 Skill 优化记录（2026-04-29）
 

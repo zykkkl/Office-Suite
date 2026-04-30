@@ -353,3 +353,147 @@ class TestOKLCHUtilities:
         lighter = adjust_lightness("#000000", 0.3)
         lch = hex_to_oklch(lighter)
         assert lch.l > 0.2
+
+
+# ============================================================
+# 渐变系统
+# ============================================================
+
+class TestGradient:
+    """engine/style/gradient.py — 渐变解析、插值、渲染适配"""
+
+    def test_parse_gradient_linear(self):
+        from office_suite.engine.style.gradient import parse_gradient
+        g = parse_gradient({"type": "linear", "angle": 45, "stops": ["#FF0000", "#0000FF"]})
+        assert g.type == "linear"
+        assert g.angle == 45
+        assert len(g.stops) == 2
+        assert g.stops[0].position == 0.0
+        assert g.stops[1].position == 1.0
+
+    def test_parse_gradient_auto_positions(self):
+        from office_suite.engine.style.gradient import parse_gradient
+        g = parse_gradient({"stops": ["#FFF", "#888", "#000"]})
+        assert g.stops[0].position == 0.0
+        assert g.stops[1].position == pytest.approx(0.5)
+        assert g.stops[2].position == 1.0
+
+    def test_evaluate_gradient_midpoint(self):
+        from office_suite.engine.style.gradient import parse_gradient, evaluate_gradient
+        g = parse_gradient({"stops": ["#000000", "#FFFFFF"]})
+        mid = evaluate_gradient(g, 0.5)
+        assert all(120 < c < 136 for c in mid)  # ≈ (128,128,128)
+
+    def test_generate_css_linear(self):
+        from office_suite.engine.style.gradient import parse_gradient, generate_css
+        g = parse_gradient({"type": "linear", "angle": 90, "stops": ["#FF0000", "#00FF00"]})
+        css = generate_css(g)
+        assert "linear-gradient" in css
+        assert "FF0000" in css
+
+    def test_generate_css_radial(self):
+        from office_suite.engine.style.gradient import parse_gradient, generate_css
+        g = parse_gradient({"type": "radial", "stops": ["#FFF", "#000"]})
+        css = generate_css(g)
+        assert "radial-gradient" in css
+
+    def test_generate_pptx_xml(self):
+        from office_suite.engine.style.gradient import parse_gradient, generate_pptx_xml
+        g = parse_gradient({"type": "linear", "angle": 135, "stops": ["#2563EB", "#7C3AED"]})
+        xml = generate_pptx_xml(g)
+        assert "gradFill" in xml
+        assert "gsLst" in xml
+        assert "2563EB" in xml
+
+    def test_generate_pptx_xml_radial(self):
+        from office_suite.engine.style.gradient import parse_gradient, generate_pptx_xml
+        g = parse_gradient({"type": "radial", "stops": ["#FFF", "#000"]})
+        xml = generate_pptx_xml(g)
+        assert 'path="circle"' in xml
+
+    def test_gradient_to_color_list(self):
+        from office_suite.engine.style.gradient import parse_gradient, gradient_to_color_list
+        g = parse_gradient({"stops": ["#000", "#FFF"]})
+        colors = gradient_to_color_list(g, steps=5)
+        assert len(colors) == 5
+        assert colors[0] == (0, 0, 0)
+        assert colors[-1] == (255, 255, 255)
+
+
+# ============================================================
+# 排版引擎
+# ============================================================
+
+class TestTypography:
+    """engine/style/typography.py — 字体、行距、文本度量"""
+
+    def test_resolve_font_family_custom(self):
+        from office_suite.engine.style.typography import resolve_font_family
+        result = resolve_font_family("Fira Code")
+        assert "Fira Code" in result
+        assert "Microsoft YaHei UI" in result  # 回退链
+
+    def test_resolve_font_family_default(self):
+        from office_suite.engine.style.typography import resolve_font_family
+        result = resolve_font_family(None)
+        assert "Microsoft YaHei UI" in result
+
+    def test_estimate_text_width(self):
+        from office_suite.engine.style.typography import estimate_text_width
+        w_en = estimate_text_width("H", 14)
+        w_cn = estimate_text_width("你", 14)
+        assert w_cn > w_en  # 单个 CJK 字符比拉丁字符宽
+
+    def test_estimate_text_metrics_single_line(self):
+        from office_suite.engine.style.typography import estimate_text_metrics, TypographySpec
+        spec = TypographySpec(font_size=14, line_height=1.5)
+        m = estimate_text_metrics("Hello", spec)
+        assert m.line_count == 1
+        assert m.height == pytest.approx(14 * 1.5)
+
+    def test_estimate_text_metrics_wrapping(self):
+        from office_suite.engine.style.typography import estimate_text_metrics, TypographySpec
+        spec = TypographySpec(font_size=14, line_height=1.5)
+        m = estimate_text_metrics("这是一段很长的中文文本用于测试自动换行功能", spec, container_width=100)
+        assert m.line_count > 1
+
+    def test_to_css(self):
+        from office_suite.engine.style.typography import to_css, TypographySpec
+        spec = TypographySpec(font_size=18, font_weight=700, text_align="center")
+        css = to_css(spec)
+        assert css["font-size"] == "18pt"
+        assert css["font-weight"] == "700"
+        assert css["text-align"] == "center"
+
+    def test_to_pptx_params(self):
+        from office_suite.engine.style.typography import to_pptx_params, TypographySpec
+        spec = TypographySpec(font_size=24, text_align="center")
+        p = to_pptx_params(spec)
+        assert p["font_size"] == 24
+        assert p["alignment"] == 2  # CENTER
+
+
+# ============================================================
+# 样式规格
+# ============================================================
+
+class TestStyleSpec:
+    """ir/style_spec.py — 样式级联、对比度计算"""
+
+    def test_cascade_styles(self):
+        from office_suite.ir.style_spec import cascade_styles, StyleSpec, FontSpec
+        base = StyleSpec(font=FontSpec(size=14), opacity=0.8)
+        override = StyleSpec(font=FontSpec(size=18))
+        result = cascade_styles([base, override])
+        assert result.font.size == 18
+        assert result.opacity == 0.8  # 未覆盖
+
+    def test_contrast_ratio(self):
+        from office_suite.ir.style_spec import contrast_ratio
+        ratio = contrast_ratio("#FFFFFF", "#000000")
+        assert ratio > 20  # WCAG AAA
+
+    def test_luminance(self):
+        from office_suite.ir.style_spec import luminance
+        assert luminance("#FFFFFF") > 0.9
+        assert luminance("#000000") < 0.01

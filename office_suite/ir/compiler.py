@@ -34,9 +34,11 @@ from .types import (
     IRAnimation,
     IRDocument,
     IRNode,
+    IRPathText,
     IRPosition,
     IRStyle,
     NodeType,
+    VALID_PATH_TYPES,
 )
 
 
@@ -162,6 +164,25 @@ def compile_style(style: StyleSpec | None) -> IRStyle | None:
     return ir
 
 
+def _extract_text_effect_fields(ir: IRStyle):
+    """从 text_effect dict 中提取扩展字段到 IRStyle 顶层字段"""
+    if not ir.text_effect:
+        return
+    te = ir.text_effect
+    if not isinstance(te, dict):
+        return
+    if ir.text_outline is None and ("stroke" in te or "outline" in te):
+        ir.text_outline = te.get("stroke") or te.get("outline")
+    if ir.text_reflection is None and "reflection" in te:
+        ir.text_reflection = te["reflection"]
+    if ir.text_bevel is None and "bevel" in te:
+        ir.text_bevel = te["bevel"]
+    if ir.letter_spacing is None and "letter_spacing" in te:
+        ir.letter_spacing = float(te["letter_spacing"])
+    if ir.word_spacing is None and "word_spacing" in te:
+        ir.word_spacing = float(te["word_spacing"])
+
+
 def _gradient_to_dict(grad) -> dict[str, Any]:
     return {
         "type": grad.type,
@@ -225,6 +246,48 @@ def _parse_animations(raw: dict | None) -> list[IRAnimation]:
         ))
 
     return animations
+
+
+def _parse_path_text(raw: dict | None) -> IRPathText | None:
+    """将 DSL path_text 字典解析为 IRPathText
+
+    支持格式：
+      path_text: { path_type: arc, radius: 80, start_angle: 10, end_angle: 170 }
+      path_text: { path_type: wave, amplitude: 8, wavelength: 40 }
+      path_text: { path_type: custom, custom_path: "M 0 0 L 100 0" }
+
+    无效 path_type 时记录警告并返回 None（降级为普通文本）。
+    """
+    if not raw or not isinstance(raw, dict):
+        return None
+
+    path_type = str(raw.get("path_type", "arc"))
+    if path_type not in VALID_PATH_TYPES:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"未知 path_text.path_type: '{path_type}'，"
+            f"合法类型: {sorted(VALID_PATH_TYPES)}，降级为普通文本"
+        )
+        return None
+
+    def _float(key: str, default: float) -> float:
+        val = raw.get(key, default)
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
+    return IRPathText(
+        path_type=path_type,
+        radius=_float("radius", 100.0),
+        start_angle=_float("start_angle", 0.0),
+        end_angle=_float("end_angle", 180.0),
+        amplitude=_float("amplitude", 10.0),
+        wavelength=_float("wavelength", 50.0),
+        custom_path=str(raw.get("custom_path", "")),
+        char_spacing=_float("char_spacing", 0.0),
+        bend=_float("bend", 50.0),
+    )
 
 
 # DSL type → IR NodeType 映射
@@ -344,6 +407,9 @@ def compile_element(
         slide_style=None,  # slide 级样式在后续迭代添加
         element_style=inline_style,
     )
+    # 从 text_effect dict 中提取扩展字段（描边/倒影/斜面/字距）
+    if cascaded_style:
+        _extract_text_effect_fields(cascaded_style)
 
     # 位置
     ir_pos = compile_position(elem.position, parent_w, parent_h)
@@ -440,6 +506,9 @@ def compile_element(
     # 动画
     animations = _parse_animations(elem.animation)
 
+    # 路径文字（从 extra 中提取，提升为 IR 顶层字段）
+    path_text = _parse_path_text(elem.extra.get("path_text"))
+
     return IRNode(
         node_type=node_type,
         id=elem.extra.get("id", ""),
@@ -452,7 +521,8 @@ def compile_element(
         data_ref=elem.data_ref,
         chart_type=elem.chart_type,
         animations=animations,
-        extra={k: v for k, v in elem.extra.items() if k != "id"},
+        path_text=path_text,
+        extra={k: v for k, v in elem.extra.items() if k not in ("id", "path_text")},
         source_path=path,
     )
 
