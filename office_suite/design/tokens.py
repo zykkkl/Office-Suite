@@ -133,6 +133,90 @@ PALETTE: dict[str, dict[str, str]] = {
         "warning": "#D97706",
         "danger": "#DC2626",
     },
+    # 莫兰迪色系（低饱和度、高级感）
+    "morandi": {
+        "primary": "#8B7E74",
+        "secondary": "#A69B8E",
+        "accent": "#C4B5A6",
+        "bg": "#F5F0EB",
+        "bg_alt": "#EDE7E0",
+        "text": "#4A4A4A",
+        "text_secondary": "#8B8B8B",
+        "border": "#D4CFC9",
+        "success": "#7D8B6A",
+        "warning": "#C4A35A",
+        "danger": "#B85C5C",
+    },
+    # 极简黑白灰
+    "minimal_bw": {
+        "primary": "#000000",
+        "secondary": "#333333",
+        "accent": "#666666",
+        "bg": "#FFFFFF",
+        "bg_alt": "#F5F5F5",
+        "text": "#000000",
+        "text_secondary": "#666666",
+        "border": "#E0E0E0",
+        "success": "#4CAF50",
+        "warning": "#FF9800",
+        "danger": "#F44336",
+    },
+    # 中国风（水墨山水）
+    "chinese_ink": {
+        "primary": "#2C3E50",
+        "secondary": "#34495E",
+        "accent": "#1ABC9C",
+        "bg": "#F8F6F0",
+        "bg_alt": "#EDE9E0",
+        "text": "#2C3E50",
+        "text_secondary": "#7F8C8D",
+        "border": "#D5D0C8",
+        "success": "#27AE60",
+        "warning": "#E67E22",
+        "danger": "#C0392B",
+    },
+    # 莫兰迪蓝
+    "morandi_blue": {
+        "primary": "#6B8FAD",
+        "secondary": "#8BA8C4",
+        "accent": "#A7C7E7",
+        "bg": "#F0F4F8",
+        "bg_alt": "#E3EAF0",
+        "text": "#3D5A73",
+        "text_secondary": "#7D9AB5",
+        "border": "#C5D5E4",
+        "success": "#7BAE7F",
+        "warning": "#D4A574",
+        "danger": "#C47C7C",
+    },
+    # 莫兰迪粉
+    "morandi_pink": {
+        "primary": "#C4A4A4",
+        "secondary": "#D4B4B4",
+        "accent": "#E8CCCC",
+        "bg": "#FBF5F5",
+        "bg_alt": "#F5EDED",
+        "text": "#6B4F4F",
+        "text_secondary": "#A08080",
+        "border": "#E0D0D0",
+        "success": "#8FAE8B",
+        "warning": "#D4B896",
+        "danger": "#C48B8B",
+    },
+    # 莫兰迪绿
+    "morandi_green": {
+        "primary": "#7D8B6A",
+        "secondary": "#95A882",
+        "accent": "#B8C9A3",
+        "bg": "#F5F8F2",
+        "bg_alt": "#EBF0E5",
+        "text": "#4A5A3D",
+        "text_secondary": "#7D8B6A",
+        "border": "#C5D1B8",
+        "success": "#7D8B6A",
+        "warning": "#C4B07A",
+        "danger": "#B87A7A",
+    },
 }
 
 
@@ -149,23 +233,26 @@ class FontSpec:
     line_height: float = 1.4
 
 
+# Major Second 模块化音阶 (ratio=1.25)，body 13pt 为基准
+# 8 → 10 → 13 → 16 → 20 → 25 → 32 → 40
+# 大字号用 tighter leading，小字号用 looser leading
 TYPOGRAPHY: dict[str, FontSpec] = {
-    "cover_title": FontSpec(size=44, weight=700),
-    "cover_subtitle": FontSpec(size=18, weight=400),
-    "section_title": FontSpec(size=36, weight=700),
-    "heading": FontSpec(size=28, weight=700),
-    "subheading": FontSpec(size=22, weight=600),
-    "body": FontSpec(size=16, weight=400),
-    "body_small": FontSpec(size=14, weight=400),
-    "caption": FontSpec(size=12, weight=400),
-    "annotation": FontSpec(size=10, weight=400),
-    "data_large": FontSpec(size=48, weight=700),
-    "data_value": FontSpec(size=36, weight=700),
-    "data_label": FontSpec(size=14, weight=400),
-    "table_header": FontSpec(size=12, weight=600),
-    "table_body": FontSpec(size=11, weight=400),
-    "chart_title": FontSpec(size=14, weight=600),
-    "chart_label": FontSpec(size=10, weight=400),
+    "cover_title": FontSpec(size=36, weight=700, line_height=1.15),
+    "cover_subtitle": FontSpec(size=16, weight=400, line_height=1.4),
+    "section_title": FontSpec(size=28, weight=700, line_height=1.2),
+    "heading": FontSpec(size=20, weight=700, line_height=1.25),
+    "subheading": FontSpec(size=16, weight=600, line_height=1.3),
+    "body": FontSpec(size=13, weight=400, line_height=1.5),
+    "body_small": FontSpec(size=11, weight=400, line_height=1.55),
+    "caption": FontSpec(size=10, weight=400, line_height=1.6),
+    "annotation": FontSpec(size=8, weight=400, line_height=1.6),
+    "data_large": FontSpec(size=36, weight=700, line_height=1.1),
+    "data_value": FontSpec(size=25, weight=700, line_height=1.2),
+    "data_label": FontSpec(size=11, weight=400, line_height=1.4),
+    "table_header": FontSpec(size=10, weight=600, line_height=1.4),
+    "table_body": FontSpec(size=9, weight=400, line_height=1.5),
+    "chart_title": FontSpec(size=11, weight=600, line_height=1.4),
+    "chart_label": FontSpec(size=8, weight=400, line_height=1.5),
 }
 
 
@@ -272,6 +359,9 @@ SHADOWS: dict[str, dict] = {
     "xl": {"color": "#000000", "opacity": 0.12, "blur": 16, "offset": [0, 8]},
     "card": {"color": "#000000", "opacity": 0.06, "blur": 6, "offset": [0, 2]},
     "elevated": {"color": "#000000", "opacity": 0.1, "blur": 12, "offset": [0, 6]},
+    # 现代风格阴影 — 更大扩散、更柔和
+    "soft": {"color": "#000000", "opacity": 0.04, "blur": 24, "offset": [0, 8]},
+    "glow": {"color": "#000000", "opacity": 0.06, "blur": 32, "offset": [0, 12]},
 }
 
 
@@ -285,6 +375,9 @@ RADII: dict[str, float] = {
     "md": 2,
     "lg": 4,
     "xl": 8,
+    "2xl": 12,
+    "3xl": 16,
+    "pill": 999,
     "full": 999,
 }
 
@@ -306,6 +399,54 @@ GRADIENTS: dict[str, dict] = {
 
 
 # ============================================================
+# 透明度阶梯 — 标准化半透明效果
+# ============================================================
+
+OPACITY: dict[str, float] = {
+    "transparent": 0.0,
+    "subtle": 0.05,
+    "faint": 0.10,
+    "medium": 0.20,
+    "strong": 0.40,
+    "intense": 0.60,
+    "opaque": 1.0,
+}
+
+
+# ============================================================
+# 主题字体映射 — 每种风格配匹配气质的字体
+# ============================================================
+
+FONT_MAP: dict[str, dict[str, str]] = {
+    # body: 正文/通用字体  display: 标题/强调字体
+    "corporate":      {"body": "Microsoft YaHei UI", "display": "Microsoft YaHei UI"},
+    "editorial":      {"body": "DengXian",           "display": "DengXian"},
+    "creative":       {"body": "Microsoft YaHei",    "display": "Microsoft YaHei"},
+    "minimal":        {"body": "DengXian",           "display": "DengXian"},
+    "tech":           {"body": "Cascadia Code",      "display": "Cascadia Code"},
+    "elegant":        {"body": "DengXian",           "display": "DengXian"},
+    "flat":           {"body": "Microsoft YaHei UI", "display": "Microsoft YaHei UI"},
+    "chinese":        {"body": "SimSun",             "display": "KaiTi"},
+    "warm":           {"body": "Microsoft YaHei UI", "display": "Microsoft YaHei UI"},
+    "morandi":        {"body": "DengXian",           "display": "DengXian"},
+    "minimal_bw":     {"body": "Microsoft YaHei UI", "display": "Microsoft YaHei UI"},
+    "chinese_ink":    {"body": "FangSong",           "display": "SimSun"},
+    "morandi_blue":   {"body": "DengXian",           "display": "DengXian"},
+    "morandi_pink":   {"body": "DengXian",           "display": "DengXian"},
+    "morandi_green":  {"body": "DengXian",           "display": "DengXian"},
+}
+
+# 哪些角色使用 display 字体（大号标题类）
+_DISPLAY_ROLES: frozenset[str] = frozenset({
+    "cover_title",
+    "section_title",
+    "data_large",
+    "chapter_num",
+    "chapter_title",
+})
+
+
+# ============================================================
 # 工具函数
 # ============================================================
 
@@ -317,6 +458,43 @@ def get_palette(name: str) -> dict[str, str]:
 def get_font(role: str) -> FontSpec:
     """获取字体规格，不存在时回退到 body"""
     return TYPOGRAPHY.get(role, TYPOGRAPHY["body"])
+
+
+def get_font_family(palette: str, role: str) -> str:
+    """根据主题和角色获取字体家族名
+
+    display 类角色（cover_title, section_title, data_large 等）使用 display 字体，
+    其余角色使用 body 字体。palette 不存在时回退到 Microsoft YaHei UI。
+
+    Args:
+        palette: 配色方案名
+        role: 字体角色
+    Returns:
+        字体家族名
+    """
+    theme = FONT_MAP.get(palette, FONT_MAP.get("corporate", {}))
+    if role in _DISPLAY_ROLES:
+        return theme.get("display", "Microsoft YaHei UI")
+    return theme.get("body", "Microsoft YaHei UI")
+
+
+def get_font_for_palette(palette: str, role: str) -> FontSpec:
+    """获取带主题字体的 FontSpec — 尺寸来自 TYPOGRAPHY，字体来自 FONT_MAP
+
+    Args:
+        palette: 配色方案名
+        role: 字体角色
+    Returns:
+        FontSpec，family 已替换为该主题对应的字体
+    """
+    base = get_font(role)
+    family = get_font_family(palette, role)
+    return FontSpec(
+        family=family,
+        size=base.size,
+        weight=base.weight,
+        line_height=base.line_height,
+    )
 
 
 def get_layout(name: str) -> dict[str, LayoutZone]:
@@ -334,6 +512,25 @@ def get_gradient(name: str) -> dict:
     return GRADIENTS.get(name, GRADIENTS["corporate"])
 
 
+def colored_shadow(palette: str, level: str = "md") -> dict:
+    """生成彩色阴影 — 使用主题 primary 色而非纯黑
+
+    Args:
+        palette: 配色方案名
+        level: 阴影级别 (sm/md/lg/soft/glow)
+    Returns:
+        阴影字典 {"color": hex, "opacity": float, "blur": int, "offset": [x,y]}
+    """
+    base = SHADOWS.get(level, SHADOWS["md"])
+    pal = get_palette(palette)
+    return {
+        "color": pal.get("primary", "#000000"),
+        "opacity": base["opacity"],
+        "blur": base["blur"],
+        "offset": base["offset"],
+    }
+
+
 def palette_to_style(palette_name: str, role: str = "body") -> dict:
     """将配色方案转为 IRStyle 可用的样式 dict
 
@@ -345,7 +542,7 @@ def palette_to_style(palette_name: str, role: str = "body") -> dict:
         包含 font 和 fill 的样式 dict
     """
     pal = get_palette(palette_name)
-    font_spec = get_font(role)
+    font_spec = get_font_for_palette(palette_name, role)
     return {
         "font": {
             "family": font_spec.family,
@@ -364,6 +561,8 @@ def palette_to_style(palette_name: str, role: str = "body") -> dict:
 __all__ = [
     "PALETTE",
     "TYPOGRAPHY",
+    "FONT_MAP",
+    "OPACITY",
     "SPACING",
     "GRID",
     "LAYOUTS",
@@ -372,8 +571,11 @@ __all__ = [
     "GRADIENTS",
     "get_palette",
     "get_font",
+    "get_font_family",
+    "get_font_for_palette",
     "get_layout",
     "get_shadow",
     "get_gradient",
+    "colored_shadow",
     "palette_to_style",
 ]

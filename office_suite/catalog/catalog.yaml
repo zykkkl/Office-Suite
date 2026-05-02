@@ -1,0 +1,470 @@
+# ─────────────────────────────────────────────────────────
+# PPT 画布元素分类目录
+# ─────────────────────────────────────────────────────────
+# 5 层分类体系：
+#   L1 ATOM       — 最小不可拆单元
+#   L2 COMPONENT  — 多原子组合的可复用组件
+#   L3 DISPLAY    — 完整展示区块
+#   L4 DECOR      — 纯装饰性元素
+#   L5 TEMPLATE   — 完整幻灯片模板
+# ─────────────────────────────────────────────────────────
+
+elements:
+
+# ── L1 ATOM ──────────────────────────────────────────────
+
+- id: heading_text
+  layer: ATOM
+  category: typography
+  name: "标题文字"
+  description: "带层级的标题文字元素，支持 H1-H3 字号"
+  tags: [text, heading, title]
+  scenes: [any]
+  params:
+    content: { type: string, required: true }
+    level: { type: integer, default: 1, range: [1, 3] }
+    color: { type: string, default: "#0C4A6E" }
+  dsl_fragment:
+    - type: text
+      content: "{{content}}"
+      align: left
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 34, weight: 700, color: "{{color}}" }
+
+- id: body_text
+  layer: ATOM
+  category: typography
+  name: "正文文字"
+  description: "标准正文段落"
+  tags: [text, body, paragraph]
+  scenes: [any]
+  params:
+    content: { type: string, required: true }
+    size: { type: integer, default: 12 }
+    color: { type: string, default: "#0C4A6E" }
+  dsl_fragment:
+    - type: text
+      content: "{{content}}"
+      align: left
+      vertical_align: top
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 12, weight: 400, color: "{{color}}" }
+
+- id: circle
+  layer: ATOM
+  category: shape
+  name: "圆形"
+  description: "基础圆形元素，常用于徽章、编号圆"
+  tags: [shape, circle, badge]
+  scenes: [any]
+  params:
+    color: { type: string, default: "#0EA5E9" }
+    size: { type: integer, default: 20 }
+  dsl_fragment:
+    - type: shape
+      shape_type: circle
+      style: { fill: { color: "{{color}}" } }
+
+- id: rectangle
+  layer: ATOM
+  category: shape
+  name: "矩形"
+  description: "基础矩形，常用于分隔线、色块"
+  tags: [shape, rectangle, bar]
+  scenes: [any]
+  params:
+    color: { type: string, default: "#0EA5E9" }
+    height: { type: string, default: "1.5mm" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{color}}" } }
+
+- id: rounded_card
+  layer: ATOM
+  category: shape
+  name: "圆角卡片"
+  description: "带圆角的卡片背景，最基础的容器形状"
+  tags: [shape, card, container, rounded]
+  scenes: [any]
+  params:
+    color: { type: string, default: "#E0F2FE" }
+    radius: { type: integer, default: 3 }
+  dsl_fragment:
+    - type: shape
+      shape_type: rounded_rectangle
+      style: { fill: { color: "{{color}}" }, radius: 3 }
+
+- id: photo
+  layer: ATOM
+  category: media
+  name: "照片"
+  description: "图片元素，支持本地路径或 URL"
+  tags: [image, photo, media]
+  scenes: [any]
+  params:
+    src: { type: string, required: true }
+  dsl_fragment:
+    - type: image
+      src: "{{src}}"
+
+
+# ── L2 COMPONENT ─────────────────────────────────────────
+
+- id: numbered_badge
+  layer: COMPONENT
+  category: badge
+  name: "编号徽章"
+  description: "圆形背景 + 数字，常用于有序列表、时间轴节点"
+  tags: [badge, number, circle, order]
+  scenes: [timeline, steps, numbered_list]
+  params:
+    number: { type: string, required: true }
+    color: { type: string, default: "#0EA5E9" }
+    size: { type: string, default: "20mm" }
+  dsl_fragment:
+    - type: shape
+      shape_type: circle
+      style: { fill: { color: "{{color}}" } }
+    - type: text
+      content: "{{number}}"
+      align: center
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 16, weight: 700, color: "#FFFFFF" }
+
+- id: stat_card
+  layer: COMPONENT
+  category: data_display
+  name: "数据卡片"
+  description: "数值 + 标签的统计展示卡片"
+  tags: [card, stat, data, metric, number]
+  scenes: [dashboard, data_display, kpi]
+  params:
+    value: { type: string, required: true }
+    label: { type: string, required: true }
+    color: { type: string, default: "#E0F2FE" }
+    value_color: { type: string, default: "#0C4A6E" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rounded_rectangle
+      style: { fill: { color: "{{color}}" }, radius: 3 }
+    - type: text
+      content: "{{value}}"
+      align: center
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 28, weight: 700, color: "{{value_color}}" }
+    - type: text
+      content: "{{label}}"
+      align: center
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 11, weight: 400, color: "{{value_color}}" }
+
+- id: icon_badge
+  layer: COMPONENT
+  category: badge
+  name: "图标徽章"
+  description: "语义图标 + 圆形背景的组合徽章"
+  tags: [badge, icon, semantic]
+  scenes: [feature_display, info_highlight]
+  params:
+    icon: { type: string, required: true }
+    color: { type: string, default: "#0EA5E9" }
+  component_name: semantic_icon
+
+- id: title_with_underline
+  layer: COMPONENT
+  category: typography
+  name: "标题带下划线"
+  description: "标题文字 + 装饰下划线的组合元素"
+  tags: [title, underline, heading, accent]
+  scenes: [section_header, page_title]
+  params:
+    content: { type: string, required: true }
+    width: { type: string, default: "97mm" }
+    color: { type: string, default: "#0EA5E9" }
+    text_color: { type: string, default: "#0C4A6E" }
+  dsl_fragment:
+    - type: text
+      content: "{{content}}"
+      align: left
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 34, weight: 700, color: "{{text_color}}" }
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{color}}" } }
+
+- id: quote_card
+  layer: COMPONENT
+  category: content
+  name: "引用卡片"
+  description: "带引号装饰的引述卡片"
+  tags: [quote, card, testimonial, highlight]
+  scenes: [quote, testimonial, highlight]
+  params:
+    content: { type: string, required: true }
+    author: { type: string }
+    color: { type: string, default: "#E0F2FE" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rounded_rectangle
+      style: { fill: { color: "{{color}}" }, radius: 4 }
+    - type: text
+      content: "{{content}}"
+      align: center
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 18, weight: 400, italic: true, color: "#0C4A6E" }
+
+
+# ── L3 DISPLAY ──────────────────────────────────────────
+
+- id: hero_banner
+  layer: DISPLAY
+  category: hero
+  name: "主视觉横幅"
+  description: "全宽背景图 + 蒙版 + 居中标题的大横幅"
+  tags: [hero, banner, full-width, background]
+  scenes: [opening, impact, visual_impact]
+  params:
+    title: { type: string, required: true }
+    subtitle: { type: string }
+    background_image: { type: string, required: true }
+    overlay_color: { type: string, default: "#0EA5E9" }
+    overlay_opacity: { type: float, default: 0.25 }
+  template_name: cover_slide
+
+- id: timeline_h
+  layer: DISPLAY
+  category: timeline
+  name: "水平时间轴"
+  description: "水平轴线 + 多节点的水平时间轴展示"
+  tags: [timeline, history, progression, horizontal]
+  scenes: [history, process, evolution]
+  params:
+    axis_y: { type: string, default: "88mm" }
+    axis_color: { type: string, default: "#BAE6FD" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{axis_color}}" } }
+
+- id: feature_grid_2x2
+  layer: DISPLAY
+  category: layout
+  name: "2x2 特性网格"
+  description: "四格等分的特性/内容展示网格"
+  tags: [grid, feature, cards, 2x2]
+  scenes: [feature_display, comparison, overview]
+
+- id: feature_grid_3col
+  layer: DISPLAY
+  category: layout
+  name: "三栏特性网格"
+  description: "三栏等分的内容展示网格"
+  tags: [grid, feature, cards, 3col]
+  scenes: [feature_display, fun_facts, highlights]
+
+- id: image_text_split
+  layer: DISPLAY
+  category: layout
+  name: "图文分栏"
+  description: "图片与文字左右分栏布局"
+  tags: [split, image, text, two-column]
+  scenes: [product_intro, explanation, about]
+
+- id: stats_row
+  layer: DISPLAY
+  category: data_display
+  name: "数据指标行"
+  description: "横排多个数据指标卡片的展示区块"
+  tags: [stats, metrics, row, dashboard]
+  scenes: [dashboard, kpi, summary]
+  params:
+    count: { type: integer, default: 3 }
+
+- id: before_after
+  layer: DISPLAY
+  category: comparison
+  name: "前后对比"
+  description: "左右对比的双栏展示"
+  tags: [comparison, before, after, vs]
+  scenes: [comparison, improvement, results]
+
+
+# ── L4 DECOR ─────────────────────────────────────────────
+
+- id: accent_underline
+  layer: DECOR
+  category: line
+  name: "装饰下划线"
+  description: "水平装饰线，宽度可设为黄金比例 97mm"
+  tags: [line, underline, accent, divider]
+  scenes: [any]
+  params:
+    width: { type: string, default: "97mm" }
+    color: { type: string, default: "#0EA5E9" }
+    height: { type: string, default: "1.5mm" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{color}}" } }
+
+- id: corner_ornament
+  layer: DECOR
+  category: shape
+  name: "角饰"
+  description: "页面角落的装饰性形状"
+  tags: [ornament, corner, decor, accent]
+  scenes: [any]
+  params:
+    corner: { type: string, default: "top-right" }
+    color: { type: string, default: "#E0F2FE" }
+
+- id: separator_line
+  layer: DECOR
+  category: line
+  name: "分隔线"
+  description: "内容区块之间的细分隔线"
+  tags: [line, separator, divider, gap]
+  scenes: [any]
+  params:
+    color: { type: string, default: "#BAE6FD" }
+  dsl_fragment:
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{color}}" } }
+
+- id: page_marker
+  layer: DECOR
+  category: typography
+  name: "页码标记"
+  description: "右下角的页码文字，如 '01 / 05'"
+  tags: [page, marker, number, footer]
+  scenes: [any]
+  params:
+    current: { type: string, required: true }
+    total: { type: string, required: true }
+    color: { type: string, default: "#0369A1" }
+  dsl_fragment:
+    - type: text
+      content: "{{current}} / {{total}}"
+      align: right
+      vertical_align: middle
+      margin: 0
+      style:
+        font: { family: "Microsoft YaHei UI", size: 10, weight: 400, color: "{{color}}" }
+
+- id: bg_overlay
+  layer: DECOR
+  category: background
+  name: "背景蒙版"
+  description: "全幅半透明色层，用于增强背景图上的文字可读性"
+  tags: [background, overlay, mask, tint]
+  scenes: [any]
+  params:
+    color: { type: string, default: "#0EA5E9" }
+    opacity: { type: float, default: 0.25 }
+  dsl_fragment:
+    - type: shape
+      shape_type: rectangle
+      style: { fill: { color: "{{color}}", opacity: 0.25 } }
+
+
+# ── L5 TEMPLATE ──────────────────────────────────────────
+
+- id: cover_center
+  layer: TEMPLATE
+  category: slide_cover
+  name: "居中封面"
+  description: "标题 + 副标题居中排列，背景图 + 蒙版"
+  tags: [cover, center, opening, title]
+  scenes: [presentation_opening, product_intro]
+  params:
+    title: { type: string, required: true }
+    subtitle: { type: string }
+    background_image: { type: string }
+    palette: { type: string, default: "corporate" }
+  template_name: cover_slide
+
+- id: section_header
+  layer: TEMPLATE
+  category: slide_section
+  name: "章节页"
+  description: "简洁的章节分隔页，章节编号 + 标题"
+  tags: [section, chapter, divider, break]
+  scenes: [section_transition]
+  params:
+    title: { type: string, required: true }
+    number: { type: string }
+    palette: { type: string, default: "corporate" }
+  template_name: section_slide
+
+- id: content_card_grid
+  layer: TEMPLATE
+  category: slide_content
+  name: "卡片内容页"
+  description: "标题 + 多卡片网格的内容页"
+  tags: [content, cards, grid, features]
+  scenes: [feature_display, comparison, overview]
+  params:
+    title: { type: string, required: true }
+    layout: { type: string, default: "card_grid_2x2" }
+
+- id: timeline_slide
+  layer: TEMPLATE
+  category: slide_content
+  name: "时间轴页"
+  description: "标题 + 水平时间轴的完整幻灯片"
+  tags: [timeline, history, process]
+  scenes: [history, evolution, process_overview]
+  params:
+    title: { type: string, required: true }
+
+- id: image_text_slide
+  layer: TEMPLATE
+  category: slide_content
+  name: "图文分栏页"
+  description: "左图右文或左文右图的完整分栏页"
+  tags: [image, text, split, two-column]
+  scenes: [product_intro, about, explanation]
+  params:
+    title: { type: string, required: true }
+    image_src: { type: string, required: true }
+    content: { type: string, required: true }
+    split_ratio: { type: string, default: "61.8/38.2" }
+
+- id: closing_slide
+  layer: TEMPLATE
+  category: slide_closing
+  name: "结尾页"
+  description: "致谢 / 联系方式 / 结束语幻灯片"
+  tags: [closing, end, thanks, contact]
+  scenes: [presentation_closing, thank_you]
+  params:
+    title: { type: string, default: "谢谢" }
+    subtitle: { type: string }
+    palette: { type: string, default: "corporate" }
+  template_name: closing_slide
+
+- id: stats_dashboard
+  layer: TEMPLATE
+  category: slide_content
+  name: "数据仪表盘"
+  description: "标题 + 多个数据指标卡片的完整页"
+  tags: [stats, dashboard, metrics, kpi]
+  scenes: [dashboard, kpi, summary]
+  params:
+    title: { type: string, required: true }
+    metrics: { type: list, required: true }

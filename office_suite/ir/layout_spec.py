@@ -19,6 +19,7 @@ class LayoutMode(Enum):
     RELATIVE = "relative"
     GRID = "grid"
     FLEX = "flex"
+    CONSTRAINT = "constraint"
 
 
 @dataclass(frozen=True)

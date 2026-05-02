@@ -25,7 +25,7 @@ from ..ir.types import IRDocument, IRNode, NodeType
 class RendererCapability:
     """渲染器能力声明 — 每个渲染器必须声明自己支持的 IR 特性"""
     supported_node_types: set[NodeType] = field(default_factory=set)
-    supported_layout_modes: set[str] = field(default_factory=lambda: {"absolute", "relative"})
+    supported_layout_modes: set[str] = field(default_factory=lambda: {"absolute", "relative", "grid", "flex", "constraint"})
     supported_text_transforms: set[str] = field(default_factory=set)
     supported_animations: set[str] = field(default_factory=set)
     supported_effects: set[str] = field(default_factory=set)

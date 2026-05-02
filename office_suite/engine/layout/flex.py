@@ -52,9 +52,11 @@ class FlexLayout:
         self,
         container_width: float = 254.0,
         container_height: float = 142.875,  # 16:9 正确高度
+        margin: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
     ):
         self.container_width = container_width
         self.container_height = container_height
+        self.margin_top, self.margin_right, self.margin_bottom, self.margin_left = margin
 
     def resolve(
         self,
@@ -75,8 +77,18 @@ class FlexLayout:
 
         is_row = flex_pos.direction in (FlexDirection.ROW, FlexDirection.ROW_REVERSE)
         is_reverse = flex_pos.direction in (FlexDirection.ROW_REVERSE, FlexDirection.COLUMN_REVERSE)
-        main_size = self.container_width if is_row else self.container_height
-        cross_size = self.container_height if is_row else self.container_width
+
+        # 页边距后的可用区域
+        if is_row:
+            main_size = self.container_width - self.margin_left - self.margin_right
+            cross_size = self.container_height - self.margin_top - self.margin_bottom
+            main_offset_base = self.margin_left
+            cross_offset_base = self.margin_top
+        else:
+            main_size = self.container_height - self.margin_top - self.margin_bottom
+            cross_size = self.container_width - self.margin_left - self.margin_right
+            main_offset_base = self.margin_top
+            cross_offset_base = self.margin_left
         gap = flex_pos.gap
         row_gap = flex_pos.row_gap if flex_pos.row_gap > 0 else gap
 
@@ -107,9 +119,9 @@ class FlexLayout:
                     max_cross = cross_size / max(1, len(lines))
                 line_cross_sizes.append(max_cross)
 
-        # 计算每行的交叉轴起始位置（align-content）
+        # 计算每行的交叉轴起始位置（align-content）+ 页边距
         total_lines_cross = sum(line_cross_sizes) + row_gap * max(0, len(lines) - 1)
-        cross_offset = self._calc_align_content_offset(
+        cross_offset = cross_offset_base + self._calc_align_content_offset(
             flex_pos.align_content, cross_size, total_lines_cross, len(lines), row_gap,
         )
 
@@ -127,8 +139,8 @@ class FlexLayout:
                 flex_pos.justify, main_size, sum(line_sizes), n, gap,
             )
 
-            # 分配位置
-            current = main_offset
+            # 分配位置（+ 页边距偏移）
+            current = main_offset_base + main_offset
             indices = range(n)
             if is_reverse:
                 indices = range(n - 1, -1, -1)

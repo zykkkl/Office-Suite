@@ -40,6 +40,7 @@ from ..engine.layout.constraint import (
     Solver, Variable, eq, le, ge, Constraint, Priority,
     make_expression, Expression, Term,
 )
+from ..design.semantic_layouts import resolve_semantic_layout
 
 
 # ============================================================
@@ -50,9 +51,12 @@ def detect_layout_mode(node: IRNode) -> str:
     """检测节点使用的布局模式
 
     优先级：
-      1. node.extra["layout_mode"] — 显式声明
+      1. node.extra["layout_mode"] — 显式声明（含语义布局名称）
       2. node.extra 中有 grid/flex 属性 → 推断
       3. 默认 "absolute"
+
+    语义布局名称（如 card_grid_2x2）由 resolve_semantic_layout 解析为
+    具体的 grid/flex 配置后注入 node.extra。
     """
     mode = node.extra.get("layout_mode")
     if mode:
@@ -107,7 +111,16 @@ class LayoutResolver:
         Returns:
             {child.id 或 child索引: IRPosition}
         """
+        # 语义布局名称解析：将 card_grid_2x2 等预设转为具体 grid/flex 配置
         mode = detect_layout_mode(container)
+        resolved = resolve_semantic_layout(mode)
+        if resolved is not None:
+            mode = resolved["mode"]
+            container.extra["layout_mode"] = mode
+            if "grid" in resolved:
+                container.extra.setdefault("grid", resolved["grid"])
+            if "flex" in resolved:
+                container.extra.setdefault("flex", resolved["flex"])
 
         if mode == "grid":
             return self._resolve_grid(container)
@@ -143,11 +156,22 @@ class LayoutResolver:
         return result
 
     def _resolve_grid(self, container: IRNode) -> dict[str, IRPosition]:
-        """栅格布局 — 使用 engine/layout/grid.py"""
+        """栅格布局 — 使用 engine/layout/grid.py
+
+        子元素有两种放置方式：
+          1. 显式 grid 元数据（column/row/span）→ 精确放置
+          2. 无 grid 元数据 → 自动按顺序填充（auto-flow: row）
+        """
         grid_cfg = container.extra.get("grid", {})
         columns = grid_cfg.get("columns", 12)
         gutter = grid_cfg.get("gutter", 2.0)
         row_height = grid_cfg.get("row_height")
+
+        # 页边距（来自语义布局配置或显式声明）
+        margin = grid_cfg.get("margin", (0.0, 0.0, 0.0, 0.0))
+        if isinstance(margin, (int, float)):
+            margin = (float(margin), float(margin), float(margin), float(margin))
+        padding = grid_cfg.get("padding", 0.0)
 
         layout = GridLayout(
             columns=columns,
@@ -155,32 +179,62 @@ class LayoutResolver:
             container_height=self.container_height,
             gutter=gutter,
             row_height=row_height,
+            margin=margin,
+            padding=padding,
         )
 
         result = {}
+        # 自动放置游标：row 从 1 开始，col 从 1 开始
+        auto_row = 1
+        auto_col = 1
+
         for i, child in enumerate(container.children):
             key = child.id or str(i)
+
+            # 已有绝对坐标的子元素直接保留，不参与网格计算
+            if self._has_explicit_position(child):
+                result[key] = child.position
+                continue
+
             grid_meta = child.extra.get("grid", {})
 
             if grid_meta:
-                grid_pos = GridPosition(
-                    column=grid_meta.get("column", 1),
-                    column_span=grid_meta.get("span", grid_meta.get("column_span", 1)),
-                    row=grid_meta.get("row", 1),
-                    row_span=grid_meta.get("row_span", 1),
-                    columns=columns,
-                    align=GridAlign(grid_meta.get("align", "stretch")),
-                )
-                abs_pos = layout.resolve(grid_pos)
-                result[key] = IRPosition(
-                    x_mm=abs_pos.x,
-                    y_mm=abs_pos.y,
-                    width_mm=abs_pos.width,
-                    height_mm=abs_pos.height,
-                )
+                # 显式放置
+                col = grid_meta.get("column", 1)
+                col_span = grid_meta.get("span", grid_meta.get("column_span", 1))
+                row = grid_meta.get("row", 1)
+                row_span = grid_meta.get("row_span", 1)
             else:
-                # 无 grid 元素，回退到绝对坐标
-                result[key] = child.position or IRPosition()
+                # 自动放置：按顺序从左到右、从上到下填充
+                col = auto_col
+                col_span = 1
+                row = auto_row
+                row_span = 1
+
+            grid_pos = GridPosition(
+                column=col,
+                column_span=col_span,
+                row=row,
+                row_span=row_span,
+                columns=columns,
+                align=GridAlign(grid_meta.get("align", "stretch") if grid_meta else "stretch"),
+            )
+            abs_pos = layout.resolve(grid_pos)
+            result[key] = IRPosition(
+                x_mm=abs_pos.x,
+                y_mm=abs_pos.y,
+                width_mm=abs_pos.width,
+                height_mm=abs_pos.height,
+            )
+
+            # 更新自动放置游标
+            next_col = col + col_span
+            if next_col > columns:
+                auto_row = row + row_span
+                auto_col = 1
+            else:
+                auto_row = row
+                auto_col = next_col
 
         return result
 
@@ -195,9 +249,15 @@ class LayoutResolver:
         gap = flex_cfg.get("gap", 0.0)
         row_gap = flex_cfg.get("row_gap", 0.0)
 
+        # 页边距
+        margin = flex_cfg.get("margin", (0.0, 0.0, 0.0, 0.0))
+        if isinstance(margin, (int, float)):
+            margin = (float(margin), float(margin), float(margin), float(margin))
+
         layout = FlexLayout(
             container_width=self.container_width,
             container_height=self.container_height,
+            margin=margin,
         )
 
         flex_pos = FlexPosition(
@@ -211,7 +271,11 @@ class LayoutResolver:
         )
 
         items = []
-        for child in container.children:
+        explicit_positions: dict[int, IRPosition] = {}
+        for i, child in enumerate(container.children):
+            if self._has_explicit_position(child):
+                explicit_positions[i] = child.position
+                continue
             flex_meta = child.extra.get("flex", {})
             pos = child.position or IRPosition()
             items.append(FlexItem(
@@ -228,20 +292,33 @@ class LayoutResolver:
         abs_positions = layout.resolve(flex_pos, items)
 
         result = {}
+        flex_idx = 0
         for i, child in enumerate(container.children):
             key = child.id or str(i)
-            if i < len(abs_positions) and abs_positions[i] is not None:
-                ap = abs_positions[i]
+            if i in explicit_positions:
+                result[key] = explicit_positions[i]
+            elif flex_idx < len(abs_positions) and abs_positions[flex_idx] is not None:
+                ap = abs_positions[flex_idx]
                 result[key] = IRPosition(
                     x_mm=ap.x,
                     y_mm=ap.y,
                     width_mm=ap.width,
                     height_mm=ap.height,
                 )
+                flex_idx += 1
             else:
                 result[key] = child.position or IRPosition()
+                flex_idx += 1
 
         return result
+
+    @staticmethod
+    def _has_explicit_position(child: IRNode) -> bool:
+        """判断子元素是否已有显式绝对坐标（非默认零值）"""
+        pos = child.position
+        if pos is None:
+            return False
+        return pos.width_mm > 0 and pos.height_mm > 0
 
     def _resolve_constraint(self, container: IRNode) -> dict[str, IRPosition]:
         """约束布局 — 使用 engine/layout/constraint.py
@@ -350,8 +427,10 @@ class LayoutResolver:
         priority = {
             "required": Priority.REQUIRED,
             "high": Priority.HIGH,
+            "strong": Priority.STRONG,
             "medium": Priority.MEDIUM,
-            "low": Priority.LOW,
+            "low": Priority.WEAK,
+            "weak": Priority.WEAK,
         }.get(priority_str, Priority.REQUIRED)
 
         if c_type == "eq":

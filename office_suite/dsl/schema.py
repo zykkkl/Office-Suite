@@ -130,6 +130,9 @@ class Element:
     filter: str | None = None
     animation: dict[str, Any] | None = None
     children: list["Element"] = field(default_factory=list)
+    # catalog 引用
+    catalog_ref: str | None = None       # catalog 条目 ID
+    catalog_params: dict[str, Any] | None = None  # 传给 catalog 的参数
     # 透传属性
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -138,6 +141,11 @@ class Element:
 class Slide:
     """幻灯片 / 节"""
     layout: str = "blank"
+    layout_mode: str = ""            # 布局引擎模式：absolute / relative / grid / flex / constraint
+    grid: dict[str, Any] | None = None      # 栅格配置：{ columns, gutter, row_height }
+    flex: dict[str, Any] | None = None      # 弹性布局配置：{ direction, justify, align, gap, wrap }
+    constraints: list[dict[str, Any]] | None = None  # 约束列表（constraint 模式）
+    card_container: bool = False     # 子元素自动应用卡片样式（圆角 + 阴影 + 背景）
     background: dict[str, Any] | None = None
     background_board: dict[str, Any] | None = None
     layers: dict[str, list[Element]] = field(default_factory=dict)

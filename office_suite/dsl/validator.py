@@ -78,6 +78,13 @@ VALID_CHART_TYPES = {
     "bar", "column", "line", "pie", "area", "scatter",
     "doughnut", "radar", "bubble",
 }
+VALID_LAYOUT_MODES = {
+    "absolute", "relative", "grid", "flex", "constraint",
+    # 语义布局预设（由 semantic_layouts.py 解析为具体配置）
+    "cover_center", "title_body", "card_grid_2x2", "card_grid_3x2",
+    "card_row_4", "split_50_50", "timeline_h6", "three_column",
+    "hero_card_left", "panel_with_grid", "quote", "stats_row",
+}
 VALID_POSITION_KEYS = {"x", "y", "width", "height", "bottom", "center"}
 VALID_FONT_KEYS = {"family", "size", "weight", "color", "italic", "underline"}
 VALID_FILL_KEYS = {"color", "gradient", "image", "opacity"}
@@ -124,7 +131,46 @@ def _check_slides(doc: dict, path: str, result: DSLValidationResult):
         if "layout" not in slide:
             result.issues.append(DSLValidationIssue(
                 Severity.WARNING, "slide 缺少 layout 字段", sp, "slide_layout"))
+        _check_slide_layout(slide, sp, result)
         _check_elements(slide.get("elements", []), sp, result)
+
+
+def _check_slide_layout(slide: dict, path: str, result: DSLValidationResult):
+    """检查幻灯片级布局配置"""
+    layout_mode = slide.get("layout_mode", "")
+    if layout_mode and layout_mode not in VALID_LAYOUT_MODES:
+        result.issues.append(DSLValidationIssue(
+            Severity.WARNING,
+            f"未知布局模式 '{layout_mode}'，合法值: {sorted(VALID_LAYOUT_MODES)}",
+            f"{path}.layout_mode", "layout_mode_unknown"))
+
+    grid = slide.get("grid")
+    if grid is not None:
+        if not isinstance(grid, dict):
+            result.issues.append(DSLValidationIssue(
+                Severity.ERROR, "grid 必须是字典", f"{path}.grid", "grid_type"))
+        elif "columns" in grid and not isinstance(grid["columns"], int):
+            result.issues.append(DSLValidationIssue(
+                Severity.ERROR, "grid.columns 必须是整数",
+                f"{path}.grid.columns", "grid_columns_type"))
+
+    flex = slide.get("flex")
+    if flex is not None and not isinstance(flex, dict):
+        result.issues.append(DSLValidationIssue(
+            Severity.ERROR, "flex 必须是字典", f"{path}.flex", "flex_type"))
+
+    constraints = slide.get("constraints")
+    if constraints is not None:
+        if not isinstance(constraints, list):
+            result.issues.append(DSLValidationIssue(
+                Severity.ERROR, "constraints 必须是列表",
+                f"{path}.constraints", "constraints_type"))
+        else:
+            for k, c in enumerate(constraints):
+                if not isinstance(c, dict):
+                    result.issues.append(DSLValidationIssue(
+                        Severity.ERROR, "constraint 必须是字典",
+                        f"{path}.constraints[{k}]", "constraint_type"))
 
 
 def _check_elements(elements: list, path: str, result: DSLValidationResult):

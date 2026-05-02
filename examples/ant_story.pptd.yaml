@@ -1,0 +1,404 @@
+version: "4.0"
+type: presentation
+style_preset: warm
+styles:
+  title:
+    font: { family: "Microsoft YaHei UI", size: 40, weight: 700, color: "#1C1917" }
+  subtitle:
+    font: { family: "Microsoft YaHei UI", size: 20, weight: 400, color: "#78716C" }
+  heading:
+    font: { family: "Microsoft YaHei UI", size: 28, weight: 700, color: "#1C1917" }
+  body:
+    font: { family: "Microsoft YaHei UI", size: 16, weight: 400, color: "#1C1917", line_height: 1.6 }
+  quote_text:
+    font: { family: "Microsoft YaHei UI", size: 22, weight: 600, color: "#D97706", italic: true }
+  chapter_num:
+    font: { family: "Microsoft YaHei UI", size: 72, weight: 700, color: "#FBBF24" }
+  chapter_title:
+    font: { family: "Microsoft YaHei UI", size: 36, weight: 700, color: "#1C1917" }
+slides:
+  # ── 封面 ──
+  - layout: blank
+    background_board:
+      background: { type: gradient, angle: 135, stops: ["#FFFBEB", "#FEF3C7"] }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: circle
+          position: { x: 200mm, y: -20mm, width: 80mm, height: 80mm }
+          style: { fill: { color: "#FBBF24", opacity: 0.15 } }
+        - type: shape
+          shape_type: circle
+          position: { x: -30mm, y: 120mm, width: 60mm, height: 60mm }
+          style: { fill: { color: "#D97706", opacity: 0.08 } }
+    elements:
+      - type: text
+        content: "小灰的故事"
+        style: title
+        position: { center: true, y: 35mm, width: 200mm, height: 20mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 92mm, y: 58mm, width: 70mm, height: 3mm }
+        style: { fill: { color: "#D97706" }, border: { radius: 1.5 } }
+      - type: text
+        content: "一只蚂蚁的勇气与智慧"
+        style: subtitle
+        position: { center: true, y: 66mm, width: 200mm, height: 10mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 85mm, y: 90mm, width: 84mm, height: 14mm }
+        style:
+          fill: { color: "#D97706" }
+          border: { radius: 7 }
+      - type: text
+        content: "一个关于坚持与协作的寓言"
+        style: { font: { size: 16, color: "#FFFFFF", weight: 600 } }
+        position: { x: 85mm, y: 92mm, width: 84mm, height: 10mm }
+      - type: text
+        content: "Office Suite · 温暖色系"
+        style: { font: { size: 12, color: "#A8A29E" } }
+        position: { center: true, y: 125mm, width: 200mm, height: 6mm }
+
+  # ── 章节1：小灰的日常 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFBEB" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 4mm, height: 142.875mm }
+          style: { fill: { color: "#D97706" } }
+    elements:
+      - type: text
+        content: "01"
+        style: chapter_num
+        position: { x: 40mm, y: 40mm, width: 60mm, height: 30mm }
+      - type: text
+        content: "小灰的日常"
+        style: chapter_title
+        position: { x: 40mm, y: 72mm, width: 160mm, height: 16mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 40mm, y: 90mm, width: 40mm, height: 3mm }
+        style: { fill: { color: "#FBBF24" }, border: { radius: 1.5 } }
+
+  # ── 第一页：介绍小灰 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFFFF" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 254mm, height: 8mm }
+          style: { fill: { color: "#FEF3C7" } }
+    elements:
+      - type: text
+        content: "认识小灰"
+        style: heading
+        position: { x: 25mm, y: 18mm, width: 200mm, height: 12mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 32mm, width: 96mm, height: 90mm }
+        style:
+          fill: { color: "#FEF3C7" }
+          border: { radius: 4 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "在蚁巢深处，住着一只叫小灰的工蚁。\n\n它每天的工作是搬运食物回巢穴，路线固定，日复一日。\n\n但小灰和别的工蚁不同——它总想试试新路。"
+        style: body
+        position: { x: 33mm, y: 38mm, width: 80mm, height: 78mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 133mm, y: 32mm, width: 96mm, height: 90mm }
+        style:
+          fill: { color: "#FFFBEB" }
+          border: { radius: 4 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "蚂蚁的世界\n\n工蚁占蚁群的 95%，承担觅食、筑巢、育幼等一切劳动。\n\n它们通过信息素交流，每条路线都有化学标记。\n\n小灰虽然遵守规则，却保留着一颗好奇的心。"
+        style: body
+        position: { x: 141mm, y: 38mm, width: 80mm, height: 78mm }
+
+  # ── 章节2：发现方糖 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFBEB" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 4mm, height: 142.875mm }
+          style: { fill: { color: "#D97706" } }
+    elements:
+      - type: text
+        content: "02"
+        style: chapter_num
+        position: { x: 40mm, y: 40mm, width: 60mm, height: 30mm }
+      - type: text
+        content: "发现方糖"
+        style: chapter_title
+        position: { x: 40mm, y: 72mm, width: 160mm, height: 16mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 40mm, y: 90mm, width: 40mm, height: 3mm }
+        style: { fill: { color: "#FBBF24" }, border: { radius: 1.5 } }
+
+  # ── 第二页：方糖挑战 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFFFF" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 254mm, height: 8mm }
+          style: { fill: { color: "#FEF3C7" } }
+    elements:
+      - type: text
+        content: "一块巨大的方糖"
+        style: heading
+        position: { x: 25mm, y: 18mm, width: 200mm, height: 12mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 35mm, width: 62mm, height: 45mm }
+        style:
+          fill: { color: "#FEF3C7" }
+          border: { radius: 3 }
+      - type: text
+        content: "小灰走了一条从未走过的路，\n发现了一块巨大的方糖——\n比自己身体大五十倍。"
+        style: body
+        position: { x: 30mm, y: 40mm, width: 52mm, height: 36mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 93mm, y: 35mm, width: 62mm, height: 45mm }
+        style:
+          fill: { color: "#FFFBEB" }
+          border: { radius: 3 }
+      - type: text
+        content: "它试着搬，\n纹丝不动。\n\n换作别的蚂蚁，也许会放弃。"
+        style: body
+        position: { x: 98mm, y: 40mm, width: 52mm, height: 36mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 161mm, y: 35mm, width: 68mm, height: 45mm }
+        style:
+          fill: { color: "#D97706" }
+          border: { radius: 3 }
+      - type: text
+        content: "但小灰没有。\n它跑回巢穴，\n发出信息素信号求援。"
+        style: { font: { size: 16, color: "#FFFFFF", weight: 400, line_height: 1.6 } }
+        position: { x: 166mm, y: 40mm, width: 58mm, height: 36mm }
+      # 底部提示
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 90mm, width: 204mm, height: 30mm }
+        style:
+          fill: { color: "#FEF3C7" }
+          border: { radius: 3 }
+      - type: text
+        content: "启示：面对看似不可能的任务，第一步不是盲目尝试，而是寻求正确的帮助。"
+        style: { font: { size: 16, color: "#D97706", weight: 600 } }
+        position: { x: 33mm, y: 95mm, width: 188mm, height: 20mm }
+
+  # ── 章节3：团队协作 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFBEB" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 4mm, height: 142.875mm }
+          style: { fill: { color: "#D97706" } }
+    elements:
+      - type: text
+        content: "03"
+        style: chapter_num
+        position: { x: 40mm, y: 40mm, width: 60mm, height: 30mm }
+      - type: text
+        content: "团队协作"
+        style: chapter_title
+        position: { x: 40mm, y: 72mm, width: 160mm, height: 16mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 40mm, y: 90mm, width: 40mm, height: 3mm }
+        style: { fill: { color: "#FBBF24" }, border: { radius: 1.5 } }
+
+  # ── 第三页：搬方糖 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFFFF" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 254mm, height: 8mm }
+          style: { fill: { color: "#FEF3C7" } }
+    elements:
+      - type: text
+        content: "一分钟内，二十只蚂蚁赶到"
+        style: heading
+        position: { x: 25mm, y: 18mm, width: 200mm, height: 12mm }
+      # 流程：三步骤
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 38mm, width: 62mm, height: 55mm }
+        style:
+          fill: { color: "#D97706" }
+          border: { radius: 3 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "分组\n\n没有队长，没有口号，自动分成三组：\n推、拉、探路。"
+        style: { font: { size: 15, color: "#FFFFFF", weight: 400, line_height: 1.5 } }
+        position: { x: 30mm, y: 42mm, width: 52mm, height: 48mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 93mm, y: 38mm, width: 62mm, height: 55mm }
+        style:
+          fill: { color: "#F59E0B" }
+          border: { radius: 3 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "执行\n\n方糖缓缓移动，经过斜坡时几只蚂蚁被甩开。"
+        style: { font: { size: 15, color: "#FFFFFF", weight: 400, line_height: 1.5 } }
+        position: { x: 98mm, y: 42mm, width: 52mm, height: 48mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 161mm, y: 38mm, width: 68mm, height: 55mm }
+        style:
+          fill: { color: "#FBBF24" }
+          border: { radius: 3 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "坚持\n\n它们没有放弃，重新找到位置继续推。四十分钟后，方糖搬进了蚁巢。"
+        style: { font: { size: 15, color: "#1C1917", weight: 400, line_height: 1.5 } }
+        position: { x: 166mm, y: 42mm, width: 58mm, height: 48mm }
+      # 底部数字高亮
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 104mm, width: 204mm, height: 22mm }
+        style: { fill: { color: "#FEF3C7" }, border: { radius: 2 } }
+      - type: text
+        content: "20 只蚂蚁   ·   40 分钟   ·   0 指挥   ·   100% 协作"
+        style: { font: { size: 18, color: "#D97706", weight: 700 } }
+        position: { x: 25mm, y: 107mm, width: 204mm, height: 16mm }
+
+  # ── 章节4：结局 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFBEB" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 4mm, height: 142.875mm }
+          style: { fill: { color: "#D97706" } }
+    elements:
+      - type: text
+        content: "04"
+        style: chapter_num
+        position: { x: 40mm, y: 40mm, width: 60mm, height: 30mm }
+      - type: text
+        content: "结局与启示"
+        style: chapter_title
+        position: { x: 40mm, y: 72mm, width: 160mm, height: 16mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 40mm, y: 90mm, width: 40mm, height: 3mm }
+        style: { fill: { color: "#FBBF24" }, border: { radius: 1.5 } }
+
+  # ── 第五页：结局 ──
+  - layout: blank
+    background_board:
+      background: { type: color, color: "#FFFFFF" }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: rect
+          position: { x: 0mm, y: 0mm, width: 254mm, height: 8mm }
+          style: { fill: { color: "#FEF3C7" } }
+    elements:
+      - type: text
+        content: "一个安静的夜晚"
+        style: heading
+        position: { x: 25mm, y: 18mm, width: 200mm, height: 12mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 36mm, width: 204mm, height: 50mm }
+        style:
+          fill: { color: "#FEF3C7" }
+          border: { radius: 4 }
+          shadow: { color: "#000000", opacity: 0.06, blur: 6, offset: [0, 2] }
+      - type: text
+        content: "小灰没有得到奖章，蚁后甚至没有看它一眼。\n但那天晚上，整个蚁巢因为这块方糖多撑过了三天的雨季。\n\n没有谁是不可替代的，但每个人的贡献都是真实的。"
+        style: { font: { size: 18, color: "#1C1917", weight: 400, line_height: 1.7 } }
+        position: { x: 35mm, y: 42mm, width: 184mm, height: 38mm }
+      # 三个启示卡片
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 25mm, y: 96mm, width: 62mm, height: 30mm }
+        style: { fill: { color: "#D97706" }, border: { radius: 3 } }
+      - type: text
+        content: "勇气\n敢于走新路"
+        style: { font: { size: 15, color: "#FFFFFF", weight: 600, line_height: 1.4 } }
+        position: { x: 30mm, y: 100mm, width: 52mm, height: 22mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 93mm, y: 96mm, width: 62mm, height: 30mm }
+        style: { fill: { color: "#F59E0B" }, border: { radius: 3 } }
+      - type: text
+        content: "智慧\n懂得求助"
+        style: { font: { size: 15, color: "#FFFFFF", weight: 600, line_height: 1.4 } }
+        position: { x: 98mm, y: 100mm, width: 52mm, height: 22mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 161mm, y: 96mm, width: 68mm, height: 30mm }
+        style: { fill: { color: "#FBBF24" }, border: { radius: 3 } }
+      - type: text
+        content: "坚持\n不轻言放弃"
+        style: { font: { size: 15, color: "#1C1917", weight: 600, line_height: 1.4 } }
+        position: { x: 166mm, y: 100mm, width: 58mm, height: 22mm }
+
+  # ── 尾页 ──
+  - layout: blank
+    background_board:
+      background: { type: gradient, angle: 135, stops: ["#FEF3C7", "#FDE68A"] }
+      illustration: []
+      scrim: []
+      ornament:
+        - type: shape
+          shape_type: circle
+          position: { x: 180mm, y: 100mm, width: 100mm, height: 100mm }
+          style: { fill: { color: "#FBBF24", opacity: 0.12 } }
+        - type: shape
+          shape_type: circle
+          position: { x: -20mm, y: -20mm, width: 80mm, height: 80mm }
+          style: { fill: { color: "#D97706", opacity: 0.08 } }
+    elements:
+      - type: text
+        content: "谢谢你，小灰"
+        style: title
+        position: { center: true, y: 45mm, width: 200mm, height: 20mm }
+      - type: shape
+        shape_type: rounded_rectangle
+        position: { x: 92mm, y: 68mm, width: 70mm, height: 3mm }
+        style: { fill: { color: "#D97706" }, border: { radius: 1.5 } }
+      - type: text
+        content: "没有谁是不可替代的\n但每个人的贡献都是真实的"
+        style: quote_text
+        position: { center: true, y: 80mm, width: 200mm, height: 16mm }
+      - type: text
+        content: "Office Suite 4.0 · 温暖色系"
+        style: { font: { size: 12, color: "#A8A29E" } }
+        position: { center: true, y: 125mm, width: 200mm, height: 6mm }

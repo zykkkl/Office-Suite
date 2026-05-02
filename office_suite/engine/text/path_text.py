@@ -148,7 +148,6 @@ def parse_svg_path(path_data: str, num_points: int = 50) -> list[PathPoint]:
         路径点列表
     """
     points = []
-    # 简化实现：只处理 M 和 L 命令
     parts = path_data.replace(",", " ").split()
     current_x, current_y = 0.0, 0.0
     i = 0
@@ -175,10 +174,88 @@ def parse_svg_path(path_data: str, num_points: int = 50) -> list[PathPoint]:
                 ))
             current_x, current_y = new_x, new_y
             i += 3
+        elif cmd in ("C", "c"):
+            # 三次贝塞尔：C x1 y1 x2 y2 x y
+            x1, y1 = float(parts[i + 1]), float(parts[i + 2])
+            x2, y2 = float(parts[i + 3]), float(parts[i + 4])
+            ex, ey = float(parts[i + 5]), float(parts[i + 6])
+            for j in range(1, num_points + 1):
+                t = j / num_points
+                mt = 1 - t
+                x = mt**3 * current_x + 3 * mt**2 * t * x1 + 3 * mt * t**2 * x2 + t**3 * ex
+                y = mt**3 * current_y + 3 * mt**2 * t * y1 + 3 * mt * t**2 * y2 + t**3 * ey
+                dx_dt = 3 * mt**2 * (x1 - current_x) + 6 * mt * t * (x2 - x1) + 3 * t**2 * (ex - x2)
+                dy_dt = 3 * mt**2 * (y1 - current_y) + 6 * mt * t * (y2 - y1) + 3 * t**2 * (ey - y2)
+                angle = math.degrees(math.atan2(dy_dt, dx_dt))
+                points.append(PathPoint(x=x, y=y, angle=angle))
+            current_x, current_y = ex, ey
+            i += 7
+        elif cmd in ("Q", "q"):
+            # 二次贝塞尔：Q x1 y1 x y
+            x1, y1 = float(parts[i + 1]), float(parts[i + 2])
+            ex, ey = float(parts[i + 3]), float(parts[i + 4])
+            for j in range(1, num_points + 1):
+                t = j / num_points
+                mt = 1 - t
+                x = mt**2 * current_x + 2 * mt * t * x1 + t**2 * ex
+                y = mt**2 * current_y + 2 * mt * t * y1 + t**2 * ey
+                dx_dt = 2 * mt * (x1 - current_x) + 2 * t * (ex - x1)
+                dy_dt = 2 * mt * (y1 - current_y) + 2 * t * (ey - y1)
+                angle = math.degrees(math.atan2(dy_dt, dx_dt))
+                points.append(PathPoint(x=x, y=y, angle=angle))
+            current_x, current_y = ex, ey
+            i += 5
         else:
             i += 1
 
     return points
+
+
+def parse_svg_path_struct(path_data: str) -> list[dict]:
+    """解析 SVG 路径为结构化节点列表（用于自由形状渲染）
+
+    返回节点列表，每个节点格式：
+        {"type": "move"|"line"|"cubic"|"quad", "points": [(x,y), ...]}
+    末尾如有 Z/z 命令则追加 {"type": "close"} 节点。
+
+    Args:
+        path_data: SVG 路径字符串
+    Returns:
+        结构化节点列表
+    """
+    nodes: list[dict] = []
+    parts = path_data.replace(",", " ").split()
+    cx, cy = 0.0, 0.0
+    i = 0
+
+    while i < len(parts):
+        cmd = parts[i]
+        if cmd in ("M", "m"):
+            cx, cy = float(parts[i + 1]), float(parts[i + 2])
+            nodes.append({"type": "move", "points": [(cx, cy)]})
+            i += 3
+        elif cmd in ("L", "l"):
+            cx, cy = float(parts[i + 1]), float(parts[i + 2])
+            nodes.append({"type": "line", "points": [(cx, cy)]})
+            i += 3
+        elif cmd in ("C", "c"):
+            x1, y1 = float(parts[i + 1]), float(parts[i + 2])
+            x2, y2 = float(parts[i + 3]), float(parts[i + 4])
+            cx, cy = float(parts[i + 5]), float(parts[i + 6])
+            nodes.append({"type": "cubic", "points": [(x1, y1), (x2, y2), (cx, cy)]})
+            i += 7
+        elif cmd in ("Q", "q"):
+            x1, y1 = float(parts[i + 1]), float(parts[i + 2])
+            cx, cy = float(parts[i + 3]), float(parts[i + 4])
+            nodes.append({"type": "quad", "points": [(x1, y1), (cx, cy)]})
+            i += 5
+        elif cmd in ("Z", "z"):
+            nodes.append({"type": "close"})
+            i += 1
+        else:
+            i += 1
+
+    return nodes
 
 
 # ============================================================

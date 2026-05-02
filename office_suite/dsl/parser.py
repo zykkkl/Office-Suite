@@ -116,12 +116,18 @@ def parse_element(raw: dict[str, Any]) -> Element:
         "type", "content", "source", "style", "style_ref", "position",
         "data_ref", "chart_type", "query", "prompt",
         "size", "opacity", "filter", "animation", "children",
+        "catalog_ref", "catalog_id", "catalog_params", "params",
     }
     extra = {k: v for k, v in raw.items() if k not in EXCLUDE_KEYS}
     # 如果 YAML 中有显式的 "extra" 键，展开合并
     if "extra" in extra and isinstance(extra["extra"], dict):
         nested = extra.pop("extra")
         extra.update(nested)
+
+    # catalog_ref 支持：type=catalog_ref 或显式 catalog_id 字段
+    catalog_ref = raw.get("catalog_ref")
+    if catalog_ref is None and raw.get("type") == "catalog_ref":
+        catalog_ref = raw.get("catalog_id", raw.get("id"))
 
     return Element(
         type=raw.get("type", "text"),
@@ -139,6 +145,8 @@ def parse_element(raw: dict[str, Any]) -> Element:
         filter=raw.get("filter"),
         animation=raw.get("animation"),
         children=[parse_element(c) for c in raw.get("children", [])],
+        catalog_ref=catalog_ref,
+        catalog_params=raw.get("catalog_params", raw.get("params")),
         extra=extra,
     )
 
@@ -159,10 +167,61 @@ def parse_layers(raw: dict[str, Any] | None) -> dict[str, list[Element]]:
     return layers
 
 
+def _expand_catalog_refs(elements_raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """展开元素列表中的 catalog_ref 引用
+
+    对于 type=catalog_ref 或含 catalog_ref 字段的元素，
+    调用 ElementCatalog.generate_dsl() 将其展开为标准元素列表。
+    非 catalog_ref 元素原样保留。
+    """
+    expanded: list[dict[str, Any]] = []
+    for raw in elements_raw:
+        if not isinstance(raw, dict):
+            expanded.append(raw)
+            continue
+
+        is_catalog_ref = (
+            raw.get("type") == "catalog_ref"
+            or "catalog_ref" in raw
+            or "catalog_id" in raw
+        )
+        if not is_catalog_ref:
+            expanded.append(raw)
+            continue
+
+        ref_id = raw.get("catalog_ref") or raw.get("catalog_id") or raw.get("id")
+        params = raw.get("catalog_params", raw.get("params", {}))
+        pos = raw.get("position")  # 保留位置覆盖
+
+        try:
+            from ..catalog.catalog import get_catalog
+            catalog = get_catalog()
+            fragments = catalog.generate_dsl(ref_id, params)
+            if pos and isinstance(fragments, list):
+                for frag in fragments:
+                    if isinstance(frag, dict) and "position" not in frag:
+                        frag["position"] = pos
+            expanded.extend(fragments)
+        except (KeyError, ImportError):
+            # catalog 未加载或条目不存在，保留原始元素
+            expanded.append(raw)
+
+    return expanded
+
+
 def parse_slide(raw: dict[str, Any]) -> Slide:
     """解析单张幻灯片"""
+    # 在解析前展开 catalog_ref 引用
+    raw_elements = _expand_catalog_refs(raw.get("elements", []))
+    # 创建一个修改过的 raw dict（不修改原始）
+    raw = {**raw, "elements": raw_elements}
     return Slide(
         layout=raw.get("layout", "blank"),
+        layout_mode=raw.get("layout_mode", ""),
+        grid=raw.get("grid"),
+        flex=raw.get("flex"),
+        constraints=raw.get("constraints"),
+        card_container=raw.get("card_container", False),
         background=raw.get("background"),
         background_board=raw.get("background_board"),
         layers=parse_layers(raw.get("layers")),
@@ -179,6 +238,23 @@ def parse_data_binding(raw: dict[str, Any]) -> DataBinding:
         formula=raw.get("formula"),
         inline=raw.get("inline"),
     )
+
+
+def _resolve_src_paths(raw: Any, base_dir: Path) -> None:
+    """递归解析 slide YAML 中元素的 src/source 相对路径为绝对路径"""
+    if isinstance(raw, dict):
+        for key in ("src", "source"):
+            val = raw.get(key)
+            if isinstance(val, str) and not val.startswith(("http://", "https://", "file://", "/")):
+                resolved = (base_dir / val).resolve()
+                raw[key] = str(resolved)
+        for v in raw.values():
+            if isinstance(v, (dict, list)):
+                _resolve_src_paths(v, base_dir)
+    elif isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, (dict, list)):
+                _resolve_src_paths(item, base_dir)
 
 
 def _load_slide_refs(page_refs: list[Any], base_dir: Path | None) -> list[dict[str, Any]]:
@@ -213,6 +289,9 @@ def _load_slide_refs(page_refs: list[Any], base_dir: Path | None) -> list[dict[s
         if not page_path.is_absolute():
             page_path = base_dir / page_path
         page_raw = load_yaml(page_path)
+
+        # 将元素中的 src/source 相对路径解析为绝对路径（相对于页面文件所在目录）
+        _resolve_src_paths(page_raw, page_path.parent)
 
         if "slides" in page_raw:
             raw_slides = page_raw.get("slides") or []

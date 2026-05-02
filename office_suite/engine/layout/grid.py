@@ -51,16 +51,26 @@ class GridLayout:
         container_height: float = 190.5,
         gutter: float = 2.0,
         row_height: float | None = None,
+        margin: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+        padding: float = 0.0,
     ):
         self.columns = columns
         self.container_width = container_width
         self.container_height = container_height
         self.gutter = gutter
         self.row_height = row_height  # None = auto
+        self.margin_top, self.margin_right, self.margin_bottom, self.margin_left = margin
+        self.padding = padding
+
+        # 页边距后的可用区域
+        self.content_x = self.margin_left
+        self.content_y = self.margin_top
+        self.content_width = container_width - self.margin_left - self.margin_right
+        self.content_height = container_height - self.margin_top - self.margin_bottom
 
         # 计算列宽（减去 gutter 占用空间）
         total_gutter = gutter * (columns - 1)
-        self.column_width = (container_width - total_gutter) / columns
+        self.column_width = (self.content_width - total_gutter) / columns
 
     def resolve(self, grid_pos: GridPosition) -> AbsolutePosition:
         """将栅格位置解析为绝对坐标
@@ -80,31 +90,37 @@ class GridLayout:
         col = min(col, self.columns)
         col_span = min(col_span, self.columns - col + 1)
 
-        # 计算 x 坐标（1-based 列号 → 0-based 偏移）
-        x = (col - 1) * (self.column_width + self.gutter)
+        # 计算 x 坐标（1-based 列号 → 0-based 偏移）+ 页边距偏移
+        x = self.content_x + (col - 1) * (self.column_width + self.gutter)
         width = col_span * self.column_width + (col_span - 1) * self.gutter
 
-        # 计算 y 坐标
+        # 计算 y 坐标 + 页边距偏移
         if self.row_height is not None:
-            y = (row - 1) * (self.row_height + self.gutter)
+            y = self.content_y + (row - 1) * (self.row_height + self.gutter)
             height = row_span * self.row_height + (row_span - 1) * self.gutter
         else:
             # 无固定行高时，使用均匀分布
-            y = (row - 1) * (self.container_height / 12)
-            height = row_span * (self.container_height / 12)
+            y = self.content_y + (row - 1) * (self.content_height / 12)
+            height = row_span * (self.content_height / 12)
 
         # 对齐方式处理
         if grid_pos.align == GridAlign.CENTER:
-            # 垂直居中（仅在有固定行高时有效）
             if self.row_height is not None:
-                available = self.container_height - (y + height)
+                available = self.content_height - (y - self.content_y + height)
                 if available > 0:
                     y += available / 2
         elif grid_pos.align == GridAlign.END:
             if self.row_height is not None:
-                available = self.container_height - (y + height)
+                available = self.content_height - (y - self.content_y + height)
                 if available > 0:
                     y += available
+
+        # 内边距（cell 内缩进）
+        if self.padding > 0:
+            x += self.padding
+            y += self.padding
+            width = max(0, width - 2 * self.padding)
+            height = max(0, height - 2 * self.padding)
 
         return AbsolutePosition(
             x=round(x, 2),
@@ -169,5 +185,5 @@ class GridLayout:
         """获取所有列的左边缘 x 坐标"""
         edges = []
         for i in range(self.columns + 1):
-            edges.append(i * (self.column_width + self.gutter))
+            edges.append(self.content_x + i * (self.column_width + self.gutter))
         return edges

@@ -41,6 +41,7 @@ from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
 from .animation import apply_animations
+from ...engine.text.path_text import parse_svg_path_struct
 
 # mm → EMU
 MM_TO_EMU = 36000
@@ -88,7 +89,7 @@ class PPTXRenderer(BaseRenderer):
                 NodeType.SHAPE, NodeType.TABLE, NodeType.CHART,
                 NodeType.GROUP, NodeType.VIDEO,
             },
-            supported_layout_modes={"absolute", "relative"},
+            supported_layout_modes={"absolute", "relative", "grid", "flex", "constraint"},
             supported_text_transforms={"arch", "arch_up", "wave", "circle"},
             supported_animations={"slide_up", "fade_in", "scale_in", "fly_in"},
             supported_effects={"shadow", "glow", "gradient_fill", "opacity"},
@@ -156,29 +157,72 @@ class PPTXRenderer(BaseRenderer):
         bg_data = slide_node.extra.get("background")
         if bg_data and not bg_board:
             self._set_background(slide, bg_data)
+        elif not bg_board and not bg_data:
+            self._set_background(slide, {"type": "color", "color": "#FFFFFF"})
 
-        # 布局解析：grid / flex / constraint 模式
+        # 布局解析：grid / flex / constraint / 语义布局 模式
         self._resolve_layout_if_needed(slide_node)
+
+        # card_container：为子元素添加背景卡片（圆角 + 阴影）
+        if slide_node.extra.get("card_container"):
+            self._apply_card_container(slide, slide_node)
 
         # 渲染元素
         for elem_node in slide_node.children:
             self._render_element(slide, elem_node, doc)
 
     def _resolve_layout_if_needed(self, slide_node: IRNode):
-        """若幻灯片使用 grid/flex/constraint 布局，解析子元素位置。"""
-        from ..layout_resolver import LayoutResolver, detect_layout_mode
+        """若幻灯片使用 grid/flex/constraint/语义布局，解析子元素位置。"""
+        from ..layout_resolver import LayoutResolver
 
-        mode = detect_layout_mode(slide_node)
-        if mode in ("grid", "flex", "constraint"):
-            resolver = LayoutResolver(
-                container_width=SLIDE_WIDTH_MM,
-                container_height=SLIDE_HEIGHT_MM,
+        resolver = LayoutResolver(
+            container_width=SLIDE_WIDTH_MM,
+            container_height=SLIDE_HEIGHT_MM,
+        )
+        # LayoutResolver.resolve_children 内部已处理语义布局名称解析
+        positions = resolver.resolve_children(slide_node)
+        for i, child in enumerate(slide_node.children):
+            key = child.id or str(i)
+            if key in positions:
+                child.position = positions[key]
+
+    def _apply_card_container(self, slide, slide_node: IRNode):
+        """为 grid/flex 子元素添加卡片背景（圆角矩形 + 白底 + 微阴影）"""
+        from lxml import etree
+
+        card_radius = slide_node.extra.get("card_radius", 3.0)
+        card_color = slide_node.extra.get("card_color", "#FFFFFF")
+        card_shadow = slide_node.extra.get("card_shadow", {
+            "color": "#000000",
+            "opacity": 0.08,
+            "blur": 4,
+            "offset_x": 0,
+            "offset_y": 2,
+        })
+
+        for child in slide_node.children:
+            pos = child.position
+            if pos is None or pos.width_mm <= 0 or pos.height_mm <= 0:
+                continue
+
+            left, top, width, height = self._pos_to_emu(pos)
+            card = slide.shapes.add_shape(
+                MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height
             )
-            positions = resolver.resolve_children(slide_node)
-            for i, child in enumerate(slide_node.children):
-                key = child.id or str(i)
-                if key in positions:
-                    child.position = positions[key]
+            card.line.fill.background()
+            card.fill.solid()
+            card.fill.fore_color.rgb = self._hex_to_rgb(card_color)
+            self._apply_shadow(card, card_shadow)
+
+            # 调整圆角程度（通过 adj 值）
+            sp_pr = getattr(card._element, 'spPr', None)
+            if sp_pr is not None:
+                a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                for avLst in sp_pr.findall(f'{{{a_ns}}}avLst'):
+                    for gd in avLst.findall(f'{{{a_ns}}}gd'):
+                        if gd.get('name') == 'adj':
+                            # adj 值越大圆角越小，16667 ≈ 小圆角
+                            gd.set('fmla', f'val {int(card_radius * 5000)}')
 
     def _get_layout_index(self, name: str) -> int:
         """布局名称 → 幻灯片布局索引"""
@@ -265,7 +309,7 @@ class PPTXRenderer(BaseRenderer):
         shape.line.fill.background()
 
         gradient = layer.get("gradient")
-        if layer_type in {"linear_gradient", "radial_gradient"}:
+        if layer_type in {"gradient", "linear_gradient", "radial_gradient"}:
             gradient = {
                 "type": "radial" if layer_type == "radial_gradient" else "linear",
                 "angle": layer.get("angle", 0),
@@ -529,6 +573,10 @@ class PPTXRenderer(BaseRenderer):
             self._apply_shape_border(shape, node)
             return
 
+        if shape_type == "freeform":
+            self._render_freeform_shape(slide, node, pos)
+            return
+
         mso_shape = self._get_shape_type(shape_type)
 
         shape = slide.shapes.add_shape(mso_shape, left, top, width, height)
@@ -573,6 +621,168 @@ class PPTXRenderer(BaseRenderer):
         # 应用动画
         if node.animations:
             apply_animations(slide, shape, node.animations)
+
+    def _render_freeform_shape(self, slide, node: IRNode, pos: IRPosition):
+        """渲染自由贝塞尔形状 — 通过 lxml 直接构造 <a:custGeom>"""
+        from lxml import etree
+
+        freeform_path = node.extra.get("freeform_path", "")
+        if not freeform_path:
+            logger.warning("freeform shape missing freeform_path, skipping")
+            return
+
+        nodes = parse_svg_path_struct(freeform_path)
+        if not nodes:
+            return
+
+        style = node.style if hasattr(node, "style") and node.style else None
+
+        left, top, width, height = self._pos_to_emu(pos)
+
+        # OOXML 命名空间
+        nsmap = {
+            "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+            "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+            "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+        }
+
+        # 路径坐标归一化范围（使用 21600000 EMU 标准路径尺寸）
+        path_w = 21600000
+        path_h = 21600000
+
+        # 命名空间前缀常量
+        a = "{" + nsmap["a"] + "}"
+        p = "{" + nsmap["p"] + "}"
+
+        # 构建 spPr
+        spPr = etree.Element(f"{p}spPr")
+
+        # xfrm
+        xfrm = etree.SubElement(spPr, f"{a}xfrm")
+        off = etree.SubElement(xfrm, f"{a}off")
+        off.set("x", str(left))
+        off.set("y", str(top))
+        ext = etree.SubElement(xfrm, f"{a}ext")
+        ext.set("cx", str(width))
+        ext.set("cy", str(height))
+
+        # custGeom
+        custGeom = etree.SubElement(spPr, f"{a}custGeom")
+        custGeom.set("prst", "")
+        etree.SubElement(custGeom, f"{a}avLst")
+        etree.SubElement(custGeom, f"{a}gdLst")
+        etree.SubElement(custGeom, f"{a}ahLst")
+        etree.SubElement(custGeom, f"{a}cxnLst")
+        rect = etree.SubElement(custGeom, f"{a}rect")
+        rect.set("l", "0")
+        rect.set("t", "0")
+        rect.set("r", "0")
+        rect.set("b", "0")
+
+        # pathLst > path
+        pathLst = etree.SubElement(custGeom, f"{a}pathLst")
+        path_el = etree.SubElement(pathLst, f"{a}path")
+        path_el.set("w", str(path_w))
+        path_el.set("h", str(path_h))
+
+        # 将百分比坐标（0-100）映射到 path 坐标（0-path_w/h）
+        def scale_x(v: float) -> int:
+            return int(v / 100.0 * path_w)
+
+        def scale_y(v: float) -> int:
+            return int(v / 100.0 * path_h)
+
+        for nd in nodes:
+            if nd["type"] == "move":
+                moveTo = etree.SubElement(path_el, f"{a}moveTo")
+                pt = etree.SubElement(moveTo, f"{a}pt")
+                pt.set("x", str(scale_x(nd["points"][0][0])))
+                pt.set("y", str(scale_y(nd["points"][0][1])))
+            elif nd["type"] == "line":
+                lnTo = etree.SubElement(path_el, f"{a}lnTo")
+                pt = etree.SubElement(lnTo, f"{a}pt")
+                pt.set("x", str(scale_x(nd["points"][0][0])))
+                pt.set("y", str(scale_y(nd["points"][0][1])))
+            elif nd["type"] == "cubic":
+                cubicBezTo = etree.SubElement(path_el, f"{a}cubicBezTo")
+                for pp in nd["points"]:
+                    pt = etree.SubElement(cubicBezTo, f"{a}pt")
+                    pt.set("x", str(scale_x(pp[0])))
+                    pt.set("y", str(scale_y(pp[1])))
+            elif nd["type"] == "quad":
+                quad_pts = nd["points"]
+                prev_end = None
+                for prev in reversed(nodes[:nodes.index(nd)]):
+                    if prev["type"] == "move":
+                        prev_end = prev["points"][0]
+                        break
+                    elif prev["type"] == "line":
+                        prev_end = prev["points"][0]
+                        break
+                    elif prev["type"] == "cubic":
+                        prev_end = prev["points"][2]
+                        break
+                    elif prev["type"] == "quad":
+                        prev_end = prev["points"][1]
+                        break
+                if prev_end is None:
+                    prev_end = (0.0, 0.0)
+                qx, qy = quad_pts[0]
+                ex, ey = quad_pts[1]
+                cp1x = prev_end[0] + 2.0 / 3.0 * (qx - prev_end[0])
+                cp1y = prev_end[1] + 2.0 / 3.0 * (qy - prev_end[1])
+                cp2x = ex + 2.0 / 3.0 * (qx - ex)
+                cp2y = ey + 2.0 / 3.0 * (qy - ey)
+                cubicBezTo = etree.SubElement(path_el, f"{a}cubicBezTo")
+                for px, py in [(cp1x, cp1y), (cp2x, cp2y), (ex, ey)]:
+                    pt = etree.SubElement(cubicBezTo, f"{a}pt")
+                    pt.set("x", str(scale_x(px)))
+                    pt.set("y", str(scale_y(py)))
+            elif nd["type"] == "close":
+                etree.SubElement(path_el, f"{a}close")
+
+        # 构建完整的 p:sp 元素
+        sp = etree.Element(f"{p}sp")
+        nvSpPr = etree.SubElement(sp, f"{p}nvSpPr")
+        cNvPr = etree.SubElement(nvSpPr, f"{p}cNvPr")
+        cNvPr.set("id", "0")
+        cNvPr.set("name", "FreeformShape")
+        etree.SubElement(nvSpPr, f"{p}cNvSpPr")
+        etree.SubElement(nvSpPr, f"{p}nvPr")
+
+        sp.append(spPr)
+
+        # 空 txBody
+        txBody = etree.SubElement(sp, f"{p}txBody")
+        etree.SubElement(txBody, f"{a}bodyPr")
+        etree.SubElement(txBody, f"{a}lstStyle")
+        p_el = etree.SubElement(txBody, f"{a}p")
+        etree.SubElement(p_el, f"{a}endParaRPr")
+
+        # 注入到 slide 的 spTree
+        spTree = slide.shapes._spTree
+        spTree.append(sp)
+
+        # 直接通过 lxml 应用填充样式到 spPr（避免 slide.shapes[-1] 的兼容问题）
+        if style and style.fill_color:
+            from pptx.oxml.ns import qn
+            solidFill = etree.SubElement(spPr, qn("a:solidFill"))
+            srgbClr = etree.SubElement(solidFill, qn("a:srgbClr"))
+            srgbClr.set("val", style.fill_color.lstrip("#"))
+        elif style and style.fill_gradient:
+            gradFill = etree.SubElement(spPr, qn("a:gradFill"))
+            gsLst = etree.SubElement(gradFill, qn("a:gsLst"))
+            stops = style.fill_gradient.get("stops", ["#000000", "#FFFFFF"])
+            for i, hex_color in enumerate(stops):
+                pos_val = str(int(i / max(len(stops) - 1, 1) * 100000))
+                gs = etree.SubElement(gsLst, qn("a:gs"))
+                gs.set("pos", pos_val)
+                clr = etree.SubElement(gs, qn("a:srgbClr"))
+                clr.set("val", hex_color.lstrip("#"))
+            angle = style.fill_gradient.get("angle", 0)
+            lin = etree.SubElement(gradFill, qn("a:lin"))
+            lin.set("ang", str(int(angle * 60000)))
+            lin.set("scaled", "1")
 
     def _render_image(self, slide, node: IRNode, doc: IRDocument):
         """渲染图片元素

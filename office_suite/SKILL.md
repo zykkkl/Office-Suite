@@ -261,6 +261,7 @@ Rules:
 - Use one color from the deck palette, normally `accent`.
 - Keep primitives minimal (5-15 primitives per icon).
 - Do not use emoji, clip art, or external SVG/PNG as icons.
+- **禁止用几何图元拼接动物轮廓**（如椭圆+三角形拼鸭子）。动物形象辨识度低且视觉粗糙，改用抽象符号（书本、火焰、圆环等）或省略图标。
 - Missing icon inventory or missing primitive recipes in design.md blocks the quality gate.
 
 ### Step 6: Generate YAML Files (Generate-All-First)

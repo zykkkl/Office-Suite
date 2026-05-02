@@ -24,6 +24,7 @@ from ..dsl.parser import parse_style
 from ..dsl.schema import (
     Document,
     Element,
+    FillSpec,
     PositionSpec,
     Slide,
     StyleSpec,
@@ -454,13 +455,28 @@ def _compile_semantic_icon_primitives(
         y = float(primitive.get("y", 0))
         w = float(primitive.get("width", primitive.get("w", 20)))
         h = float(primitive.get("height", primitive.get("h", w)))
-        fill = primitive.get("fill_opacity", primitive.get("fill"))
-        if isinstance(fill, bool):
-            fill_opacity = 0.18 if fill else None
-        elif fill is None:
-            fill_opacity = None
+        # fill 可以是颜色字符串（如 "#D4AF37"）或布尔值
+        # fill_opacity 是独立的透明度字段（0.0-1.0）
+        raw_fill = primitive.get("fill")
+        raw_fill_opacity = primitive.get("fill_opacity")
+        # 判断 fill 是颜色还是透明度
+        if isinstance(raw_fill, str) and raw_fill.startswith("#"):
+            # fill 是颜色，覆盖 primitive_color
+            primitive_color = raw_fill
+            fill_opacity = 1.0 if raw_fill_opacity is None else float(raw_fill_opacity)
+        elif isinstance(raw_fill, bool):
+            fill_opacity = 0.18 if raw_fill else None
+        elif raw_fill_opacity is not None:
+            fill_opacity = float(raw_fill_opacity)
+        elif raw_fill is not None:
+            fill_opacity = float(raw_fill)
         else:
-            fill_opacity = float(fill)
+            fill_opacity = None
+        opacity = primitive.get("opacity")
+        if opacity is not None and fill_opacity is not None:
+            fill_opacity = fill_opacity * float(opacity)
+        elif opacity is not None:
+            fill_opacity = float(opacity)
         stroke = primitive.get("stroke", True)
         actual_stroke_width = stroke_width if stroke is not False else 0
         nodes.append(_semantic_icon_shape(
@@ -1129,6 +1145,20 @@ def compile_slide(
             extra["layers"] = list(slide.layers.keys())
         if slide.transition:
             extra["transition"] = slide.transition
+        # 布局引擎配置透传到 IR
+        if slide.layout_mode:
+            extra["layout_mode"] = slide.layout_mode
+        elif slide.layout and slide.layout not in ("blank", "stack", "title"):
+            # 语义布局名称（如 card_grid_2x2）自动作为 layout_mode 传递
+            extra["layout_mode"] = slide.layout
+        if slide.grid:
+            extra["grid"] = slide.grid
+        if slide.flex:
+            extra["flex"] = slide.flex
+        if slide.constraints:
+            extra["constraints"] = slide.constraints
+        if slide.card_container:
+            extra["card_container"] = True
 
         slide_node = IRNode(
             node_type=NodeType.SLIDE,
@@ -1154,36 +1184,36 @@ def compile_document(doc: Document) -> IRDocument:
     preset_styles = {}
     if preset_name:
         try:
-            from ..design.tokens import PALETTE, TYPOGRAPHY
+            from ..design.tokens import PALETTE, TYPOGRAPHY, get_font_family
             pal = PALETTE.get(preset_name, {})
             if pal:
-                # 从预设生成基础样式
+                # 从预设生成基础样式（字体根据主题自动选择）
                 preset_styles["title"] = IRStyle(
-                    font_family="Microsoft YaHei UI",
+                    font_family=get_font_family(preset_name, "cover_title"),
                     font_size=TYPOGRAPHY["cover_title"].size,
                     font_weight=TYPOGRAPHY["cover_title"].weight,
                     font_color=pal.get("text", "#0F172A"),
                 )
                 preset_styles["heading"] = IRStyle(
-                    font_family="Microsoft YaHei UI",
+                    font_family=get_font_family(preset_name, "heading"),
                     font_size=TYPOGRAPHY["heading"].size,
                     font_weight=TYPOGRAPHY["heading"].weight,
                     font_color=pal.get("text", "#0F172A"),
                 )
                 preset_styles["body"] = IRStyle(
-                    font_family="Microsoft YaHei UI",
+                    font_family=get_font_family(preset_name, "body"),
                     font_size=TYPOGRAPHY["body"].size,
                     font_weight=TYPOGRAPHY["body"].weight,
                     font_color=pal.get("text", "#0F172A"),
                 )
                 preset_styles["caption"] = IRStyle(
-                    font_family="Microsoft YaHei UI",
+                    font_family=get_font_family(preset_name, "caption"),
                     font_size=TYPOGRAPHY["caption"].size,
                     font_weight=TYPOGRAPHY["caption"].weight,
                     font_color=pal.get("text_secondary", "#64748B"),
                 )
                 preset_styles["accent"] = IRStyle(
-                    font_family="Microsoft YaHei UI",
+                    font_family=get_font_family(preset_name, "body"),
                     font_size=TYPOGRAPHY["body"].size,
                     font_weight=600,
                     font_color=pal.get("primary", "#2563EB"),
@@ -1203,6 +1233,10 @@ def compile_document(doc: Document) -> IRDocument:
             else:
                 doc_ir_styles[name] = compiled
 
+    # 幻灯片类型自动增强：当有 style_preset 时，为无背景的幻灯片注入默认背景
+    if preset_name:
+        _auto_enhance_slides(doc.slides, preset_name)
+
     # 编译幻灯片
     slides = []
     for i, slide in enumerate(doc.slides):
@@ -1220,6 +1254,118 @@ def compile_document(doc: Document) -> IRDocument:
         children=slides,
         raw_dsl=doc.raw,
     )
+
+
+def _parse_mm(val) -> float:
+    """将 '254mm' / '254' / 254 等转为 float"""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip().lower()
+    if s.endswith("mm"):
+        s = s[:-2]
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _has_fullslide_bg(slide) -> bool:
+    """检查幻灯片是否已有全幅背景矩形（覆盖整个画布的 shape）"""
+    for elem in slide.elements:
+        if elem.type != "shape":
+            continue
+        pos = elem.position
+        if pos is None:
+            continue
+        shape_type = getattr(elem, "extra", {}).get("shape_type", "rectangle")
+        if shape_type not in ("rectangle", "rounded_rectangle"):
+            continue
+        if (_parse_mm(pos.x) <= 0 and _parse_mm(pos.y) <= 0
+                and _parse_mm(pos.width) >= 250 and _parse_mm(pos.height) >= 140):
+            return True
+    return False
+
+
+def _auto_enhance_slides(slides: list, preset_name: str) -> None:
+    """幻灯片类型自动增强 — 为无背景的幻灯片注入设计预设背景
+
+    根据幻灯片位置和内容自动匹配合适的背景：
+      - 第一页（封面）：渐变或强调色背景
+      - 中间页（内容）：简洁背景（纯色 + 点缀）
+      - 最后一页（收尾）：呼应封面的背景
+
+    只对没有 background/background_board 的幻灯片生效。
+    """
+    from ..design.background_presets import (
+        business_clean, gradient_spotlight, subtle_texture, split_accent
+    )
+    from ..design.tokens import PALETTE
+
+    if not slides:
+        return
+
+    # 判断幻灯片类型（封面、内容、收尾）
+    total = len(slides)
+    for i, slide in enumerate(slides):
+        # 跳过已有背景的幻灯片（background/background_board 或全幅背景矩形）
+        if slide.background or slide.background_board:
+            continue
+        if _has_fullslide_bg(slide):
+            continue
+
+        if total == 1:
+            # 单页演示：用简洁风格
+            slide.background_board = business_clean(palette=preset_name, accent_bar=True)
+        elif i == 0:
+            # 封面页
+            if preset_name in ("tech", "creative", "sunset", "ocean", "forest"):
+                slide.background_board = gradient_spotlight(palette=preset_name)
+            else:
+                slide.background_board = business_clean(palette=preset_name, accent_bar=True)
+            _inject_freeform_decor(slide, preset_name, role="cover")
+        elif i == total - 1:
+            # 收尾页：与封面呼应
+            if preset_name in ("tech", "creative", "sunset", "ocean", "forest"):
+                slide.background_board = gradient_spotlight(palette=preset_name)
+            else:
+                slide.background_board = business_clean(palette=preset_name, accent_bar=True)
+            _inject_freeform_decor(slide, preset_name, role="closing")
+        else:
+            # 内容页：极简背景，不影响内容可读性
+            slide.background = {"color": PALETTE.get(preset_name, PALETTE["corporate"])["bg"]}
+
+
+def _inject_freeform_decor(slide, preset_name: str, role: str = "cover") -> None:
+    """为幻灯片注入自由贝塞尔装饰元素"""
+    from ..design.freeform_shapes import blob_shape, ink_splash
+    from ..design.tokens import get_palette
+
+    pal = get_palette(preset_name)
+    accent = pal.get("accent", pal.get("primary", "#3B82F6"))
+
+    # 根据主题选择装饰风格
+    if preset_name == "chinese_ink":
+        path = ink_splash(seed=hash(preset_name) % 100, cx=80, cy=70, r=30)
+        opacity = 0.08
+    elif preset_name in ("tech", "creative"):
+        path = blob_shape(seed=42, cx=82, cy=65, r=25, points=5, jitter=0.3)
+        opacity = 0.06
+    elif preset_name in ("warm", "morandi"):
+        path = blob_shape(seed=7, cx=78, cy=72, r=28, points=7, jitter=0.2)
+        opacity = 0.05
+    else:
+        path = blob_shape(seed=3, cx=85, cy=75, r=18, points=5, jitter=0.2)
+        opacity = 0.04
+
+    slide.elements.append(Element(
+        type="shape",
+        position=PositionSpec(x="60", y="40", width="35", height="35"),
+        style=StyleSpec(fill=FillSpec(color=accent, opacity=opacity)),
+        opacity=opacity,
+        extra={"shape_type": "freeform", "freeform_path": path},
+    ))
 
 
 def _merge_styles(base: IRStyle, override: IRStyle) -> IRStyle:
