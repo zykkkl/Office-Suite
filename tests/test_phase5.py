@@ -7,12 +7,6 @@
 4. 端到端: 自然语言 → 建议 → DSL 编译 → 渲染
 """
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
 from office_suite.ai.intent import DesignBrief, parse_intent
 from office_suite.ai.suggest import (
     ColorScheme, DesignSuggestion, suggest_color_scheme,

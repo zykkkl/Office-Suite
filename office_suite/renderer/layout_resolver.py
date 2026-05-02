@@ -314,11 +314,15 @@ class LayoutResolver:
 
     @staticmethod
     def _has_explicit_position(child: IRNode) -> bool:
-        """判断子元素是否已有显式绝对坐标（非默认零值）"""
+        """判断子元素是否已有显式绝对坐标（非默认零值）
+
+        仅当 x 或 y 坐标非零时才视为"已定位"。
+        仅有 width/height 不算——这些是尺寸提示，不是位置。
+        """
         pos = child.position
         if pos is None:
             return False
-        return pos.width_mm > 0 and pos.height_mm > 0
+        return (pos.x_mm != 0.0 or pos.y_mm != 0.0)
 
     def _resolve_constraint(self, container: IRNode) -> dict[str, IRPosition]:
         """约束布局 — 使用 engine/layout/constraint.py

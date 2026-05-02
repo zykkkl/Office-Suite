@@ -7,12 +7,10 @@
 4. IR→PPTX 映射测试 20+ 用例通过
 """
 
-import sys
 import zipfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
 from PIL import Image
 

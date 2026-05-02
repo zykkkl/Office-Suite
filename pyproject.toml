@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+markers = [
+    "slow: 耗时较长的测试（PPTX 100 页渲染等）",
+    "e2e: 端到端集成测试（DSL → IR → Renderer）",
+]

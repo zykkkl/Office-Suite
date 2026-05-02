@@ -10,7 +10,6 @@ from ._split import _calc_split
 
 def _init_special_layouts() -> None:
     """初始化所有预定义语义布局"""
-    global _SPECIAL_LAYOUTS
     if _SPECIAL_LAYOUTS:
         return
 
@@ -215,4 +214,4 @@ def _init_special_layouts() -> None:
     layouts["map_right"] = _calc_split("d", "4060", 4.0)
     layouts["map_top"] = _calc_split("v", "6040", 2.0)
 
-    _SPECIAL_LAYOUTS = layouts
+    _SPECIAL_LAYOUTS.update(layouts)

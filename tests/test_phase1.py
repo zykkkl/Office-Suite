@@ -7,12 +7,10 @@
 4. 样式级联 3 层生效
 """
 
-import sys
 from pathlib import Path
 from dataclasses import dataclass
 
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
 from office_suite.dsl.parser import parse_yaml_string
 from office_suite.ir.compiler import compile_document, compile_position, _parse_length, compile_style

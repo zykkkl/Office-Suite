@@ -3,12 +3,6 @@
 验证 LayoutResolver 正确桥接 engine/layout 引擎与 IRPosition。
 """
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
 from office_suite.ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from office_suite.renderer.layout_resolver import LayoutResolver, detect_layout_mode
 
