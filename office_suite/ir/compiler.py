@@ -721,11 +721,14 @@ def compile_element(
 
     # 路径文字（从 extra 中提取，提升为 IR 顶层字段）
     path_text = _parse_path_text(elem.extra.get("path_text"))
+    content = elem.content
+    if isinstance(content, str):
+        content = content.replace("\\n", "\n")
 
     return IRNode(
         node_type=node_type,
         id=elem.extra.get("id", ""),
-        content=elem.content,
+        content=content,
         source=source,
         position=ir_pos,
         style=cascaded_style,

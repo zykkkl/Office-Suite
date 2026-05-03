@@ -176,22 +176,22 @@ Rules:
 - No card nesting (destroys the containment signal)
 - Consistent radius (3mm) across all cards (consistency reduces processing cost)
 
-### 3.4 Layout Patterns as Attention Scaffolds
+### 3.4 Composition Families as Attention Scaffolds
 
-Each layout pattern defines an **attention routing path** -- the sequence of eye fixations the audience will follow.
+Each composition defines an **attention routing path** -- the sequence of eye fixations the audience will follow. Built-in templates are examples of renderer-safe structures, not mandatory layouts.
 
-| Pattern | Attention Path | Best For |
-|---------|---------------|----------|
-| `cover_center` | Center outward | First/last impressions, single focal point |
-| `title_body` | Top-down linear | Single-topic narrative |
-| `split_50_50` | Left-right comparison | Two related concepts |
-| `three_column` | Left-center-right scan | Parallel options or categories |
-| `card_grid_2x2` | Z-pattern (2x2) | 4 related items |
-| `card_grid_3x2` | Z-pattern (3x2) | 6 related items |
-| `card_row_4` | Horizontal sweep | 4 items in sequence |
-| `timeline_h6` | Linear progression | Process or journey |
-| `hero_card_left` | Focal left, scan right | Profile with attributes |
-| `panel_with_grid` | Panel frame, internal grid | Complex structured data |
+| Composition | Attention Path | Best For |
+|-------------|---------------|----------|
+| `editorial_opener` | Image/visual field -> title -> metadata | First/last impressions |
+| `annotated_artifact` | Artifact -> labels -> conclusion | Explaining objects, screenshots, images, diagrams |
+| `data_poster` | Oversized number -> claim -> proof notes | One decisive metric |
+| `narrative_timeline` | Path/ribbon/shelf progression | Origin, process, journey |
+| `comparison_axis` | Pole A -> tension -> Pole B | Tradeoffs, before/after, old/new |
+| `quote_wall` | Dominant quote -> author -> supporting fragments | Reflection, culture, voices |
+| `process_field` | Central method -> steps -> outcome | Frameworks and methods |
+| `magazine_spread` | Headline -> image/figure -> margin note | Editorial explanation |
+| `map_or_hub` | Center concept -> satellite details | Ecosystems, factors, stakeholders |
+| `card_grid` | Z-pattern across equal containers | True inventories or parallel items only |
 
 ### 3.5 Spacing Rhythm
 

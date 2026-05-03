@@ -70,13 +70,15 @@ Typography rhythm across the deck:
 - Body at 13pt for balanced density, 12pt for dense content
 - Caption at 10pt consistently
 
-### Step 4: Layout Pattern Strategy
+### Step 4: Composition Strategy
 
-Select 3-5 layout patterns from the library that provide sufficient variety for the deck's page count:
+Select 5 or more composition types for a 6+ slide deck. Use templates only as references for syntax, spacing, and render-safe dimensions; do not treat template layouts as mandatory.
 
-- **Rule of non-repetition**: The same layout pattern should not appear on more than 2 consecutive content pages
-- **Progressive complexity**: Earlier content pages use simpler patterns (title_body, split_50_50), later pages can use more complex patterns (panel_with_grid, card_grid_3x2)
-- **Climactic moments**: Key data pages or turning points can use dedicated patterns that break the established rhythm
+- **Rule of non-repetition**: The same skeleton should not appear on more than 2 consecutive content pages.
+- **Anti-card default**: Card grids are allowed for true catalogs or parallel comparisons, but they are not the default content layout.
+- **Progressive complexity**: Earlier content pages may use simpler editorial splits; later pages can use annotated artifacts, data posters, timelines, comparison axes, quote walls, or process fields.
+- **Climactic moments**: Key data pages or turning points should use a dedicated composition that breaks the established rhythm.
+- **Template reference only**: Borrow coordinate patterns only after the slide's custom composition has been decided from the message and metaphor.
 
 ### Step 5: Write style contract
 
@@ -109,8 +111,8 @@ Produce `design.md`:
 | Body | ... | 13pt | 400 | Evidence carrier |
 | Caption | ... | 10pt | 400 | Metadata layer |
 
-## Layout Patterns
-[List selected patterns and their intended use]
+## Composition Plan
+[List selected composition types, slide roles, and why each avoids a generic template]
 
 ## Spacing
 [Standard rhythm or overrides]

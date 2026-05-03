@@ -174,13 +174,13 @@ Slide 7 [closing]:   SPARSE (high impact, minimal content)
 
 The pattern: sparse open -> build density -> decompress -> peak density -> sparse close. This creates a narrative rhythm that sustains attention.
 
-### 5.2 Layout Rhythm
+### 5.2 Composition Rhythm
 
-Consecutive slides should NOT use the same layout pattern. The rule of non-repetition:
+Consecutive slides should NOT use the same composition skeleton. The rule of non-repetition:
 
-- Maximum 2 consecutive slides with the same layout pattern
-- After a complex layout (panel_with_grid, card_grid_3x2), follow with a simpler one (title_body, split_50_50)
-- Chapter/transition pages break the content layout sequence (they use cover_center)
+- Maximum 2 consecutive slides with the same skeleton
+- After a dense composition (large grid, complex chart, or multi-label diagram), follow with a simpler or more spacious composition
+- Chapter/transition pages break the content layout sequence, but should still express the deck's motif
 
 ### 5.3 Color Rhythm
 

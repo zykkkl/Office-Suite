@@ -53,18 +53,18 @@ For each content point in the user's outline, determine:
 2. **Saliency assignment**: Which chunk should be the pre-attentive target (the thing the eye sees first)?
    - Typically the key metric, the conclusion, or the most surprising finding
 
-3. **Layout pattern selection**: Which pattern from the library best routes attention for this content?
+3. **Composition selection**: Which custom composition best routes attention for this content? Use templates only as syntax/spacing references.
 
-| Content Structure | Recommended Pattern |
-|------------------|-------------------|
-| Single narrative thread | `title_body` |
-| Two parallel concepts | `split_50_50` |
-| Three comparable options | `three_column` |
-| Four feature/benefit pairs | `card_grid_2x2` |
-| Six categories or items | `card_grid_3x2` |
-| Sequential process steps | `timeline_h6` |
-| Person/team with attributes | `hero_card_left` |
-| Dataset with internal structure | `panel_with_grid` |
+| Content Structure | Recommended Composition |
+|------------------|-------------------------|
+| Single narrative thread | `magazine_spread` or sparse editorial text |
+| Two parallel concepts | `comparison_axis` |
+| Three comparable options | `process_field` or asymmetric trio |
+| Four feature/benefit pairs | `card_grid` only if equal weight is essential |
+| Six categories or items | `card_grid` only for inventories; otherwise split into two slides or use a map/hub |
+| Sequential process steps | `narrative_timeline` |
+| Person/team with attributes | `annotated_artifact` or profile spread |
+| Dataset with internal structure | `data_poster`, chart, or `map_or_hub` |
 
 4. **Evidence type**: What visual evidence supports the key message?
    - Quantitative comparison -> chart

@@ -6,7 +6,7 @@ This document defines the reusable structure for an Office Suite presentation. U
 
 1. **One message per slide** -- Each slide precisely conveys one core idea
 2. **Page types must be explicit** -- Every page has a type: cover, table_of_contents, chapter, content, closing
-3. **Layout pattern assignment** -- Every page specifies a layout pattern from the SKILL.md pattern library
+3. **Composition assignment** -- Every page specifies a custom composition family and visual hook; templates are references, not constraints
 4. **Chapter consistency** -- Either all chapters have transition pages or none do
 
 ## Slide Type Inventory
@@ -21,27 +21,28 @@ This document defines the reusable structure for an Office Suite presentation. U
 
 **Target total**: 10-25 pages for a standard presentation.
 
-## Layout Pattern Assignment Guide
+## Composition Assignment Guide
 
 ### Cover and Closing Pages
 
-| Pattern | Use When |
-|---------|----------|
-| `cover_center` | Default for cover/closing; centered title block with decorative lines |
+| Composition | Use When |
+|-------------|----------|
+| `editorial_opener` | Cover/chapter with art-directed image, object, or visual field |
+| `closing_poster` | Closing with sparse memorable call-to-action |
 
 ### Content Pages
 
-| Pattern | Use When |
-|---------|----------|
-| `title_body` | Simple single-topic content; title + body text block |
-| `split_50_50` | Two comparable sections; left panel + right panel |
-| `three_column` | 3 comparable items side by side |
-| `card_grid_2x2` | 4 items in equal cards |
-| `card_grid_3x2` | 6 items in equal cards |
-| `card_row_4` | 4 items in one horizontal row |
-| `timeline_h6` | 6-step journey or process |
-| `hero_card_left` | Character/profile; large left card + right attribute grid |
-| `panel_with_grid` | Complex data; large panel with internal grid |
+| Composition | Use When |
+|-------------|----------|
+| `annotated_artifact` | One object/image/screenshot/diagram carries the explanation |
+| `data_poster` | One metric or conclusion should dominate |
+| `narrative_timeline` | Events, origin, process, or journey |
+| `comparison_axis` | Two sides, tradeoffs, before/after, or contrast |
+| `quote_wall` | A quote or voice needs emotional weight |
+| `process_field` | Methods or steps should feel integrated rather than boxed |
+| `magazine_spread` | Editorial explanation with headline, image/figure, and margin notes |
+| `map_or_hub` | Factors, stakeholders, ecosystem, or relationships |
+| `card_grid` | Equal-weight inventories only; not the default for content pages |
 
 ## Content Density Rules
 

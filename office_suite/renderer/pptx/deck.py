@@ -320,13 +320,19 @@ class PPTXRenderer(BaseRenderer):
                 "stops": self._normalize_gradient_stops(layer.get("stops", [])),
             }
 
+        style_fill = {}
+        style = layer.get("style")
+        if isinstance(style, dict) and isinstance(style.get("fill"), dict):
+            style_fill = style["fill"]
+
         if gradient:
             self._apply_gradient_fill(shape.fill, gradient)
         else:
             shape.fill.solid()
-            shape.fill.fore_color.rgb = self._hex_to_rgb(layer.get("color", "#000000"))
+            fill_color = layer.get("color", style_fill.get("color", "#000000"))
+            shape.fill.fore_color.rgb = self._hex_to_rgb(fill_color)
 
-        opacity = layer.get("opacity")
+        opacity = layer.get("opacity", style_fill.get("opacity"))
         if opacity is not None:
             self._apply_fill_alpha(shape, float(opacity))
 
