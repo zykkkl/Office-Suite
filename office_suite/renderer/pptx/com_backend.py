@@ -97,6 +97,7 @@ class COMPowerPoint:
             try:
                 self._app.Quit()
             except Exception:
+                # COM 应用可能已自行退出
                 pass
             self._app = None
 

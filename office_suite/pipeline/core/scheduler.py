@@ -4,6 +4,7 @@
   声明依赖关系 → 自动拓扑排序 → 并行调度 → 汇聚输出
 """
 
+import threading
 from typing import Any
 from .graph import PipelineGraph, PipelineNode, NodeStatus
 from .context import PipelineContext
@@ -20,6 +21,7 @@ class PipelineScheduler:
     def __init__(self, graph: PipelineGraph, context: PipelineContext | None = None):
         self.graph = graph
         self.context = context or PipelineContext()
+        self._lock = threading.Lock()
 
     def run(self) -> dict[str, Any]:
         """执行整个流水线
@@ -101,7 +103,16 @@ class PipelineScheduler:
                         for name in level
                     }
                     for future in as_completed(futures):
-                        future.result()  # 传播异常
+                        try:
+                            future.result()
+                        except Exception as exc:
+                            node_name = futures[future]
+                            with self._lock:
+                                node = self.graph.get_node(node_name)
+                                if node:
+                                    node.error = str(exc)
+                                    node.status = NodeStatus.FAILED
+                                self.context.log(f"[FAIL] {node_name}: {exc}")
 
             if self._should_stop():
                 break
@@ -115,31 +126,36 @@ class PipelineScheduler:
             return
 
         if not self._deps_satisfied(node):
-            node.status = NodeStatus.SKIPPED
-            self.context.log(f"[SKIP] {node_name}: 依赖未满足")
+            with self._lock:
+                node.status = NodeStatus.SKIPPED
+                self.context.log(f"[SKIP] {node_name}: 依赖未满足")
             return
 
-        node.status = NodeStatus.RUNNING
-        self.context.log(f"[RUN]  {node_name} ({node.node_type})")
+        with self._lock:
+            node.status = NodeStatus.RUNNING
+            self.context.log(f"[RUN]  {node_name} ({node.node_type})")
 
         try:
             result = self._execute_node(node)
-            node.result = result
-            node.status = NodeStatus.SUCCESS
-            self.context.set_output(node_name, result)
-            self.context.log(f"[OK]   {node_name}")
+            with self._lock:
+                node.result = result
+                node.status = NodeStatus.SUCCESS
+                self.context.set_output(node_name, result)
+                self.context.log(f"[OK]   {node_name}")
         except Exception as e:
-            node.error = str(e)
-            node.status = NodeStatus.FAILED
-            self.context.log(f"[FAIL] {node_name}: {e}")
+            with self._lock:
+                node.error = str(e)
+                node.status = NodeStatus.FAILED
+                self.context.log(f"[FAIL] {node_name}: {e}")
 
     def _should_stop(self) -> bool:
         """检查是否需要停止执行"""
         if self.graph.config.get("fail_fast"):
-            return any(
-                n.status == NodeStatus.FAILED
-                for n in self.graph.nodes.values()
-            )
+            with self._lock:
+                return any(
+                    n.status == NodeStatus.FAILED
+                    for n in self.graph.nodes.values()
+                )
         return False
 
     def _deps_satisfied(self, node: PipelineNode) -> bool:

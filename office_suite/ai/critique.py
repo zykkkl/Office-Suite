@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from ..constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 from ..ir.types import IRDocument, IRNode, IRStyle, NodeType
 
 
@@ -278,9 +279,9 @@ def _check_layout(nodes: list[IRNode], report: CritiqueReport):
                     suggestion="调整位置或添加间距",
                 ))
 
-    # 检查元素是否超出边界（假设标准幻灯片 254mm x 190mm）
+    # 检查元素是否超出边界（标准 16:9 幻灯片 254mm x 142.875mm）
     for node, pos in positioned:
-        if pos.x_mm + pos.width_mm > 260:
+        if pos.x_mm + pos.width_mm > SLIDE_WIDTH_MM:
             report.issues.append(CritiqueIssue(
                 severity=CritiqueSeverity.WARNING,
                 category="alignment",
@@ -288,7 +289,7 @@ def _check_layout(nodes: list[IRNode], report: CritiqueReport):
                 node_name=node.content[:15] if node.content else "",
                 suggestion="减小宽度或调整 x 坐标",
             ))
-        if pos.y_mm + pos.height_mm > 200:
+        if pos.y_mm + pos.height_mm > SLIDE_HEIGHT_MM:
             report.issues.append(CritiqueIssue(
                 severity=CritiqueSeverity.WARNING,
                 category="alignment",

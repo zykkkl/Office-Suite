@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ..constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 from ..ir.types import IRNode, IRPosition, NodeType
 from ..ir.layout_spec import (
     AbsolutePosition,
@@ -88,14 +89,14 @@ class LayoutResolver:
       - constraint: 约束求解（Cassowary 简化版）
 
     用法：
-        resolver = LayoutResolver(254.0, 142.875)
+        resolver = LayoutResolver(SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM)
         positions = resolver.resolve_children(slide_node)
     """
 
     def __init__(
         self,
-        container_width: float = 254.0,
-        container_height: float = 142.875,
+        container_width: float = SLIDE_WIDTH_MM,
+        container_height: float = SLIDE_HEIGHT_MM,
     ):
         self.container_width = container_width
         self.container_height = container_height

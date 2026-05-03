@@ -24,8 +24,7 @@ from ..ornaments import (
     circle_frame,
 )
 
-SLIDE_W = 254.0
-SLIDE_H = 142.875
+from ...constants import SLIDE_WIDTH_MM as SLIDE_W, SLIDE_HEIGHT_MM as SLIDE_H
 
 
 def _palette_colors(name: str) -> dict[str, str]:

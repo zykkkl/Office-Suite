@@ -98,6 +98,7 @@ from .freeform_shapes import (
     cloud_shape,
     leaf_shape,
 )
+from .patterns import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 
 __all__ = [
     # 设计令牌
@@ -183,4 +184,7 @@ __all__ = [
     "ribbon_shape",
     "cloud_shape",
     "leaf_shape",
+    # 幻灯片尺寸常量
+    "SLIDE_WIDTH_MM",
+    "SLIDE_HEIGHT_MM",
 ]

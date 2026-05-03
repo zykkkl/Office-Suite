@@ -60,6 +60,7 @@ class IRGraph:
         self._edges: list[GraphEdge] = []
         self._adjacency: dict[str, list[str]] = {}  # source → [targets]
         self._reverse_adj: dict[str, list[str]] = {} # target → [sources]
+        self._id_counter: int = 0
 
     @classmethod
     def from_document(cls, doc: IRDocument) -> "IRGraph":
@@ -77,7 +78,8 @@ class IRGraph:
 
     def _build_from_node(self, node: IRNode, parent_id: str | None) -> str:
         """递归构建图"""
-        node_id = f"{node.node_type.value}_{id(node)}"
+        self._id_counter += 1
+        node_id = f"{node.node_type.value}_{self._id_counter}"
         graph_node = GraphNode(node_id=node_id, ir_node=node)
         self._nodes[node_id] = graph_node
 

@@ -18,7 +18,25 @@
   center → (parent_width - self_width) / 2
 """
 
+import logging
 from typing import Any
+
+from ..constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
+
+logger = logging.getLogger(__name__)
+
+# ============================================================
+# 高度估算默认值 (mm)
+# ============================================================
+_DEFAULT_LINE_H = 2.0        # 水平线
+_DEFAULT_SHAPE_H = 10.0      # 通用形状
+_DEFAULT_TABLE_H = 60.0      # 表格
+_DEFAULT_CHART_H = 80.0      # 图表
+_DEFAULT_IMAGE_H = 60.0      # 图片
+_DEFAULT_EMPTY_TEXT_H = 8.0  # 空文本块
+_DEFAULT_FONT_SIZE = 18      # 默认字号 (pt)
+_WIDTH_COEFF_CJK = 0.6       # 中文字符宽度系数 (× 字号 pt)
+_WIDTH_COEFF_LATIN = 0.35    # 英文字符宽度系数 (× 字号 pt)
 
 from ..dsl.parser import parse_style
 from ..dsl.schema import (
@@ -74,10 +92,11 @@ def _parse_length(value: str | float | None, parent_size: float = 0) -> tuple[fl
     try:
         return float(s), False, False
     except ValueError:
+        logger.warning("无法解析长度值 %r，回退为 0mm", s)
         return 0.0, False, False
 
 
-def compile_position(pos: PositionSpec | None, parent_w: float = 254.0, parent_h: float = 142.875) -> IRPosition | None:
+def compile_position(pos: PositionSpec | None, parent_w: float = SLIDE_WIDTH_MM, parent_h: float = SLIDE_HEIGHT_MM) -> IRPosition | None:
     """将 DSL PositionSpec 编译为 IRPosition（mm 单位）
 
     默认父容器尺寸：标准 16:9 幻灯片 = 254mm x 142.875mm (10" x 5.625")
@@ -264,10 +283,9 @@ def _parse_path_text(raw: dict | None) -> IRPathText | None:
 
     path_type = str(raw.get("path_type", "arc"))
     if path_type not in VALID_PATH_TYPES:
-        import logging
-        logging.getLogger(__name__).warning(
-            f"未知 path_text.path_type: '{path_type}'，"
-            f"合法类型: {sorted(VALID_PATH_TYPES)}，降级为普通文本"
+        logger.warning(
+            "未知 path_text.path_type: '%s'，合法类型: %s，降级为普通文本",
+            path_type, sorted(VALID_PATH_TYPES),
         )
         return None
 
@@ -563,8 +581,8 @@ def compile_element(
     global_styles: dict[str, StyleSpec],
     doc_styles: dict[str, IRStyle],  # 已编译的 IR 全局样式
     theme_name: str = "default",
-    parent_w: float = 254.0,
-    parent_h: float = 142.875,
+    parent_w: float = SLIDE_WIDTH_MM,
+    parent_h: float = SLIDE_HEIGHT_MM,
     path: str = "",
 ) -> IRNode:
     """将 DSL Element 编译为 IRNode
@@ -743,7 +761,7 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
     if elem.type == "shape":
         shape_type = elem.extra.get("shape_type", "rectangle")
         if shape_type == "line":
-            return 2
+            return _DEFAULT_LINE_H
         # 有 size.height 时使用
         if elem.size and elem.size.get("height"):
             h_raw = str(elem.size["height"]).replace("mm", "").strip()
@@ -751,7 +769,7 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
                 return float(h_raw)
             except ValueError:
                 pass
-        return 10  # 默认 shape 高度
+        return _DEFAULT_SHAPE_H
 
     # table 类型
     if elem.type == "table":
@@ -761,38 +779,38 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
                 return float(h_raw)
             except ValueError:
                 pass
-        return 60  # 默认表格高度
+        return _DEFAULT_TABLE_H
 
     # chart 类型
     if elem.type == "chart":
-        return 80  # 默认图表高度
+        return _DEFAULT_CHART_H
 
     # image 类型
     if elem.type == "image":
-        return 60  # 默认图片高度
+        return _DEFAULT_IMAGE_H
 
     # text 类型（核心逻辑）
     if elem.type == "text":
         content = elem.content or ""
         if not content:
-            return 8  # 空文本
+            return _DEFAULT_EMPTY_TEXT_H
 
         # 从 style 中获取字号
-        font_size = 18  # 默认字号
+        font_size = _DEFAULT_FONT_SIZE
         if isinstance(elem.style, dict):
             font_spec = elem.style.get("font", {})
             if isinstance(font_spec, dict):
-                font_size = font_spec.get("size", 18)
+                font_size = font_spec.get("size", _DEFAULT_FONT_SIZE)
         elif isinstance(elem.style, StyleSpec) and elem.style.font:
             font_size = elem.style.font.size
 
-        # 估算文本宽度：中文字符约 0.6 * 字号，英文约 0.35 * 字号
+        # 估算文本宽度：CJK 字符宽系数 × 字号，Latin 字符窄系数 × 字号
         text_width_pt = 0
         for ch in content:
-            if ord(ch) > 127:  # 中文字符
-                text_width_pt += font_size * 0.6
+            if ord(ch) > 127:  # CJK 字符
+                text_width_pt += font_size * _WIDTH_COEFF_CJK
             else:
-                text_width_pt += font_size * 0.35
+                text_width_pt += font_size * _WIDTH_COEFF_LATIN
 
         # 转换为 mm (1pt ≈ 0.3528mm)
         text_width_mm = text_width_pt * 0.3528
@@ -810,7 +828,7 @@ def _estimate_element_height(elem: Element, content_width: float) -> float:
         return lines * line_height_mm + 2.54
 
     # group 和其他类型
-    return 10
+    return _DEFAULT_SHAPE_H
 
 
 def _is_chapter_title(elem: Element) -> bool:
@@ -1068,9 +1086,9 @@ def compile_slide(
                 total_height += _estimate_element_height(elem, content_width) + stack_spacing
 
             # 如果超出页面高度，进行分页
-            if total_height > 142.875:
+            if total_height > SLIDE_HEIGHT_MM:
                 element_pages = _split_elements_for_pagination(
-                    slide_elements, content_width, 142.875, stack_spacing, padding_top
+                    slide_elements, content_width, SLIDE_HEIGHT_MM, stack_spacing, padding_top
                 )
             else:
                 element_pages = [slide_elements]
@@ -1163,7 +1181,7 @@ def compile_slide(
         slide_node = IRNode(
             node_type=NodeType.SLIDE,
             content=None,
-            position=IRPosition(x_mm=0, y_mm=0, width_mm=254, height_mm=142.875),
+            position=IRPosition(x_mm=0, y_mm=0, width_mm=SLIDE_WIDTH_MM, height_mm=SLIDE_HEIGHT_MM),
             children=children,
             extra=extra,
             source_path=f"slide[{index}]" + (f".{page_idx}" if page_idx > 0 else ""),

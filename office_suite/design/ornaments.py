@@ -12,9 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
-SLIDE_W = 254.0
-SLIDE_H = 142.875
+from ..constants import SLIDE_WIDTH_MM as SLIDE_W, SLIDE_HEIGHT_MM as SLIDE_H
 
 
 def corner_ribbon(

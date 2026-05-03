@@ -206,15 +206,17 @@ def to_html(rich: RichDocument) -> str:
             if run.subscript:
                 text = f"<sub>{text}</sub>"
             if run.color:
-                style_parts.append(f"color:{run.color}")
+                style_parts.append(f"color:{_sanitize_css_value(run.color)}")
             if run.bg_color:
-                style_parts.append(f"background-color:{run.bg_color}")
+                style_parts.append(f"background-color:{_sanitize_css_value(run.bg_color)}")
             if run.font_size:
                 style_parts.append(f"font-size:{run.font_size}pt")
             if run.font_family:
-                style_parts.append(f"font-family:{run.font_family}")
+                style_parts.append(f"font-family:{_sanitize_css_value(run.font_family)}")
             if run.link:
-                text = f'<a href="{run.link}">{text}</a>'
+                href = _escape_html(run.link)
+                if not href.lower().startswith(("javascript:", "data:", "vbscript:")):
+                    text = f'<a href="{href}">{text}</a>'
 
             if style_parts:
                 text = f'<span style="{";".join(style_parts)}">{text}</span>'
@@ -258,3 +260,14 @@ def _escape_html(text: str) -> str:
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;"))
+
+
+def _sanitize_css_value(value: str) -> str:
+    """净化 CSS 属性值，防止样式注入"""
+    return (value
+            .replace("\\", "")
+            .replace("'", "")
+            .replace('"', "")
+            .replace(";", "")
+            .replace("{", "")
+            .replace("}", ""))

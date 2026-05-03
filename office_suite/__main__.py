@@ -2,15 +2,13 @@
 
 Provides the documented command:
     python -m office_suite build input.yml -o output.pptx
+    python -m office_suite --help
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-
-from .tools.convert import convert_dsl_file
-
 
 SUPPORTED_FORMATS = {"pptx", "docx", "xlsx", "pdf", "html"}
 
@@ -31,6 +29,9 @@ def _infer_format(output_path: Path, explicit_format: str | None) -> str:
 
 
 def build_command(args: argparse.Namespace) -> int:
+    # 延迟导入：仅在实际渲染时才加载渲染器依赖
+    from .tools.convert import convert_dsl_file
+
     input_path = Path(args.input)
     output_path = Path(args.output)
     target_format = _infer_format(output_path, args.format)
@@ -42,7 +43,10 @@ def build_command(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Office Suite document generation CLI")
+    parser = argparse.ArgumentParser(
+        prog="office-suite",
+        description="Office Suite 4.0 — Omni-media fusion document engine",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build_parser = subparsers.add_parser("build", help="Render a YAML DSL file")

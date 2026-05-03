@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-_SLIDE_W = 254.0
-_SLIDE_H = 142.875
+from ...constants import SLIDE_WIDTH_MM as _SLIDE_W, SLIDE_HEIGHT_MM as _SLIDE_H
 
 _MARGIN_PRESETS = {
     "t": (16.0, 12.0, 25.0, 25.0),

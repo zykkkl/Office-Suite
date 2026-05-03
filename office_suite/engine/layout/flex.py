@@ -9,6 +9,7 @@ Flexbox 布局在一维方向（行或列）上排列元素，
 """
 
 from dataclasses import dataclass
+from ...constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 from ...ir.layout_spec import (
     AbsolutePosition, FlexPosition, FlexDirection, FlexJustify, FlexAlign,
     FlexWrap, LayoutMode, LayoutSpec,
@@ -50,8 +51,8 @@ class FlexLayout:
 
     def __init__(
         self,
-        container_width: float = 254.0,
-        container_height: float = 142.875,  # 16:9 正确高度
+        container_width: float = SLIDE_WIDTH_MM,
+        container_height: float = SLIDE_HEIGHT_MM,
         margin: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
     ):
         self.container_width = container_width

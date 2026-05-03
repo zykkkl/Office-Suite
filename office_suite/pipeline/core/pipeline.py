@@ -16,8 +16,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Any
 
@@ -212,6 +215,7 @@ class Pipeline:
                 )
             except Exception:
                 # 历史记录失败不应阻断主流程
+                logger.debug("历史记录初始化失败", exc_info=True)
                 history = None
 
         # 执行
@@ -254,7 +258,7 @@ class Pipeline:
                         error=info.get("error") or None,
                     )
                 except Exception:
-                    pass
+                    logger.debug("历史记录写入节点失败: %s", name, exc_info=True)
 
         success = len(failed_nodes) == 0
 
@@ -263,7 +267,7 @@ class Pipeline:
             try:
                 history.record_finish(status="completed" if success else "failed")
             except Exception:
-                pass
+                logger.debug("历史记录完成写入失败", exc_info=True)
 
         return PipelineResult(
             pipeline_name=self._graph.name or "unnamed",

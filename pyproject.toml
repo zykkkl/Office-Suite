@@ -1,3 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "office-suite"
+version = "4.0.0"
+description = "Omni-media fusion document engine: YAML DSL -> IR -> PPTX/DOCX/XLSX/PDF/HTML"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+pptx = ["python-pptx>=1.0", "lxml>=5.0", "Pillow>=10.0"]
+docx = ["python-docx>=1.0"]
+xlsx = ["openpyxl>=3.1"]
+pdf  = ["reportlab>=4.0"]
+full = [
+    "python-pptx>=1.0",
+    "lxml>=5.0",
+    "Pillow>=10.0",
+    "python-docx>=1.0",
+    "openpyxl>=3.1",
+    "reportlab>=4.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+office-suite = "office_suite.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["office_suite*"]
+exclude = ["tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
@@ -6,3 +46,16 @@ markers = [
     "slow: 耗时较长的测试（PPTX 100 页渲染等）",
     "e2e: 端到端集成测试（DSL → IR → Renderer）",
 ]
+
+[tool.coverage.run]
+source = ["office_suite"]
+omit = [
+    "office_suite/tools/*",
+    "office_suite/templates/builtins/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+# 覆盖率门禁：低于此值 pytest --cov 会返回非零退出码
+fail_under = 60

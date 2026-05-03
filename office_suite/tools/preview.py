@@ -12,6 +12,7 @@
 WebSocket 实时刷新留待 P2 完整实现。
 """
 
+import html as html_mod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -162,6 +163,11 @@ def generate_html_preview_page(
         preview_html = html_result.output_path.read_text(encoding="utf-8")
 
     # 生成完整页面
+    safe_dsl = html_mod.escape(dsl_content)
+    safe_preview = preview_html  # preview_html 来自渲染器输出，已在渲染器内部转义
+    compile_t = f"{html_result.compile_time:.3f}" if html_result else "N/A"
+    render_t = f"{html_result.render_time:.3f}" if html_result else "N/A"
+
     page_html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -187,19 +193,19 @@ def generate_html_preview_page(
     <div class="toolbar">
         <button onclick="location.reload()">刷新预览</button>
         <span class="status">
-            编译: {html_result.compile_time:.3f}s |
-            渲染: {html_result.render_time:.3f}s
+            编译: {compile_t}s |
+            渲染: {render_t}s
         </span>
     </div>
     <div class="container">
         <div class="panel">
             <h2>DSL 源码</h2>
-            <pre>{dsl_content}</pre>
+            <pre>{safe_dsl}</pre>
         </div>
         <div class="panel">
             <h2>渲染预览</h2>
             <div class="preview-frame">
-                {preview_html}
+                {safe_preview}
             </div>
         </div>
     </div>

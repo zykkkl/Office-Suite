@@ -10,6 +10,7 @@
 
 from dataclasses import dataclass, field
 from typing import Any
+from ...constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 from ...ir.layout_spec import (
     AbsolutePosition, GridPosition, GridAlign, LayoutMode, LayoutSpec,
 )
@@ -47,8 +48,8 @@ class GridLayout:
     def __init__(
         self,
         columns: int = 12,
-        container_width: float = 254.0,
-        container_height: float = 190.5,
+        container_width: float = SLIDE_WIDTH_MM,
+        container_height: float = SLIDE_HEIGHT_MM,
         gutter: float = 2.0,
         row_height: float | None = None,
         margin: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),

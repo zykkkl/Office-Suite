@@ -1,10 +1,8 @@
 """渐变类背景预设"""
 from __future__ import annotations
 from typing import Any
+from ...constants import SLIDE_WIDTH_MM as SLIDE_W, SLIDE_HEIGHT_MM as SLIDE_H
 from ..tokens import get_palette, get_gradient
-
-SLIDE_W = 254.0
-SLIDE_H = 142.875
 
 def _palette_colors(name: str) -> dict[str, str]:
     return get_palette(name)

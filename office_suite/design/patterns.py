@@ -13,13 +13,15 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from ..constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
+
 
 def dot_grid(
     density: float = 0.3,
     color: str = "#E2E8F0",
     opacity: float = 0.6,
-    slide_w: float = 254.0,
-    slide_h: float = 142.875,
+    slide_w: float = SLIDE_WIDTH_MM,
+    slide_h: float = SLIDE_HEIGHT_MM,
 ) -> list[dict[str, Any]]:
     """点阵背景 — 均匀分布的圆点
 
@@ -52,8 +54,8 @@ def line_grid(
     color: str = "#E2E8F0",
     opacity: float = 0.4,
     angle: float = 0,
-    slide_w: float = 254.0,
-    slide_h: float = 142.875,
+    slide_w: float = SLIDE_WIDTH_MM,
+    slide_h: float = SLIDE_HEIGHT_MM,
 ) -> list[dict[str, Any]]:
     """斜线网格 / 横竖网格背景
 
@@ -112,8 +114,8 @@ def hex_grid(
     size: float = 6.0,
     color: str = "#CBD5E1",
     opacity: float = 0.25,
-    slide_w: float = 254.0,
-    slide_h: float = 142.875,
+    slide_w: float = SLIDE_WIDTH_MM,
+    slide_h: float = SLIDE_HEIGHT_MM,
 ) -> list[dict[str, Any]]:
     """六边形蜂窝网格背景
 
@@ -149,7 +151,7 @@ def wave_bottom(
     amplitude: float = 6.0,
     wavelength: float = 40.0,
     y_base: float = 120.0,
-    slide_w: float = 254.0,
+    slide_w: float = SLIDE_WIDTH_MM,
 ) -> list[dict[str, Any]]:
     """底部波浪装饰 — 用多个小线段近似正弦波
 
@@ -177,8 +179,8 @@ def wave_bottom(
 
 
 def concentric_circles(
-    center_x: float = 127.0,
-    center_y: float = 71.0,
+    center_x: float = SLIDE_WIDTH_MM / 2,
+    center_y: float = SLIDE_HEIGHT_MM / 2,
     max_radius: float = 100.0,
     step: float = 12.0,
     color: str = "#CBD5E1",
@@ -214,8 +216,8 @@ def diagonal_stripes(
     spacing: float = 8.0,
     stripe_width: float = 2.0,
     angle: float = 45,
-    slide_w: float = 254.0,
-    slide_h: float = 142.875,
+    slide_w: float = SLIDE_WIDTH_MM,
+    slide_h: float = SLIDE_HEIGHT_MM,
 ) -> list[dict[str, Any]]:
     """斜条纹背景 — 用平行四边形条带模拟
 
@@ -267,8 +269,8 @@ def corner_dots(
         corner: 角落位置 (top-left, top-right, bottom-left, bottom-right)
     """
     elements = []
-    base_x = 0 if "left" in corner else 254.0 - size
-    base_y = 0 if "top" in corner else 142.875 - size
+    base_x = 0 if "left" in corner else SLIDE_WIDTH_MM - size
+    base_y = 0 if "top" in corner else SLIDE_HEIGHT_MM - size
     sign_x = 1 if "left" in corner else -1
     sign_y = 1 if "top" in corner else -1
 

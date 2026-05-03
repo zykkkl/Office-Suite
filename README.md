@@ -6,7 +6,7 @@
 YAML DSL → Parser → IR Document → Renderer → .pptx / .docx / .xlsx / .pdf / .html
 ```
 
-类比 LLVM：前端解析设计意图 → 统一中间表示 → 后端渲染到任意格式。180+ 测试，全部通过。
+类比 LLVM：前端解析设计意图 → 统一中间表示 → 后端渲染到任意格式。423+ 测试，全部通过。
 
 ## 快速开始
 
@@ -14,20 +14,31 @@ YAML DSL → Parser → IR Document → Renderer → .pptx / .docx / .xlsx / .pd
 
 ```bash
 git clone <repo-url> && cd Office-Suite
-pip install -r requirements.txt
+
+# 核心（仅 DSL/IR，无可选后端）
+pip install -e .
+
+# 全部功能（PPTX + DOCX + XLSX + PDF + HTML）
+pip install -e ".[full]"
+
+# 开发（含 pytest + 覆盖率）
+pip install -e ".[full,dev]"
 ```
+
+可选后端可单独安装：`pip install -e ".[pptx]"`, `pip install -e ".[pdf]"` 等。
 
 ### 一行命令生成文档
 
 ```bash
-# 使用内置模板生成五格式文档
+# CLI 入口（推荐，pip install 后可用）
+office-suite build deck.yml -o output/deck.pptx
+
+# 或通过 -m 方式
+py -m office_suite build deck.yml -o output/deck.pptx
+
+# 使用内置模板生成
 py -m office_suite.tools.generate apple_benefits
-
-# 使用自定义 YAML 生成
-py -m office_suite.tools.generate my_presentation
 ```
-
-输出到 `demo_output/<项目名>/`，自动生成 `.pptx`, `.pdf`, `.docx`, `.xlsx`, `.html`。
 
 ### Python API
 
@@ -140,17 +151,20 @@ office_suite/
 | Phase 8 (Animation + WordArt) | 58 | ✅ |
 | Phase 9 (Templates) | 64 | ✅ |
 | Pipeline | 39 | ✅ |
-| **合计 (pytest)** | **180** | **全绿** |
+| Design Enhancements | 61 | ✅ |
+| **合计 (pytest)** | **423 passed, 1 xfail** | **全绿** |
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v --cov        # 运行测试 + 覆盖率报告
 ```
 
 ## 工具脚本
 
 | 命令 | 说明 |
 |------|------|
-| `py -m office_suite.tools.generate <name>` | 从 YAML 生成 PPTX + PDF |
+| `office-suite build <file> -o <out>` | CLI 入口：渲染 YAML DSL |
+| `py -m office_suite build <file> -o <out>` | 同上（-m 方式） |
+| `py -m office_suite.tools.generate <name>` | 从内置模板生成 PPTX + PDF |
 | `py -m office_suite.tools.check <file> --render <fmt>` | 统一质量门 (解析→编译→校验→Lint→渲染) |
 | `py -m office_suite.tools.convert <file> <out> <fmt>` | 格式转换 |
 | `py -m office_suite.tools.linter <file>` | 独立 Lint 检查 |

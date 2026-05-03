@@ -280,11 +280,14 @@ SPACING = SpacingSpec()
 # 布局网格 (mm)
 # ============================================================
 
+from ..constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
+
+
 @dataclass(frozen=True)
 class SlideGrid:
     """幻灯片网格"""
-    width: float = 254.0
-    height: float = 142.875
+    width: float = SLIDE_WIDTH_MM
+    height: float = SLIDE_HEIGHT_MM
     columns: int = 12
     gutter: float = 2.0
 

@@ -11,9 +11,12 @@
 Hub 解析 source 时按注册顺序查找匹配的 Provider。
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ResourceProvider(Protocol):
@@ -69,8 +72,7 @@ class ResourceRegistry:
                     if result.success:
                         return result
                 except Exception as e:
-                    # Provider 异常，继续尝试下一个
-                    pass
+                    logger.debug("Provider %s failed for %s: %s", provider.name, source, e)
 
         # 所有 Provider 都无法处理 → 降级到占位符
         return ResourceResult(

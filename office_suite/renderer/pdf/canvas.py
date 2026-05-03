@@ -24,7 +24,10 @@ PDF 能力：
   - 不支持动画、艺术字
 """
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
@@ -43,9 +46,7 @@ from ...ir.types import IRDocument, IRNode, IRPosition, IRStyle, NodeType
 from ...ir.validator import validate_ir_v2
 from ..base import BaseRenderer, RendererCapability
 
-# 页面尺寸
-PAGE_WIDTH_MM = 254   # 10 inches ≈ 254mm (widescreen)
-PAGE_HEIGHT_MM = 142.875  # 5.625 inches ≈ 142.875mm (widescreen 16:9)
+from ...constants import SLIDE_WIDTH_MM as PAGE_WIDTH_MM, SLIDE_HEIGHT_MM as PAGE_HEIGHT_MM
 
 # reportlab 内置字体
 _BUILTIN_FONTS = {
@@ -198,7 +199,7 @@ class PDFRenderer(BaseRenderer):
                         bar_h = self._page_h / steps
                         self._c.rect(0, s * bar_h, self._page_w, bar_h + 0.5, fill=1, stroke=0)
                 except Exception:
-                    pass  # 渐变失败时回退到纯色
+                    logger.debug("PDF 渐变渲染失败，回退纯色", exc_info=True)
         else:
             # 纯色背景
             color = bg.get("color")
@@ -436,7 +437,7 @@ class PDFRenderer(BaseRenderer):
                 )
                 return
             except Exception:
-                pass
+                logger.debug("PDF 图片嵌入失败，回退占位矩形", exc_info=True)
 
         self._c.saveState()
         self._c.setStrokeColor(HexColor("#CBD5E1"))

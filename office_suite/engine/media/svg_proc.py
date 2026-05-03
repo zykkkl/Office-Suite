@@ -12,7 +12,10 @@ SVG 处理能力：
 本模块优先提供解析和参数提取，转码作为可选增强。
 """
 
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 from typing import Any
 import re
 import xml.etree.ElementTree as ET
@@ -96,7 +99,7 @@ def parse_svg(svg_content: str | bytes) -> SVGInfo:
         info.element_count = sum(1 for _ in root.iter())
 
     except Exception:
-        pass
+        logger.debug("SVG 解析失败，返回默认信息", exc_info=True)
 
     return info
 

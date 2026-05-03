@@ -24,11 +24,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..constants import SLIDE_HEIGHT_MM as _SLIDE_H
+
 # ============================================================
 # 手写语义布局（SKILL.md 原有 12 种，保持向后兼容）
 # ============================================================
-
-_SLIDE_H = 142.875
 _TOP_MARGIN = 16.0
 _BOTTOM_MARGIN = 12.0
 _LEFT_MARGIN = 25.0

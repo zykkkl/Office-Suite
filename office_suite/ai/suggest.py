@@ -12,7 +12,7 @@
 所有建议均为"推荐"，用户可覆盖。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 from .intent import DesignBrief
@@ -37,6 +37,10 @@ class ColorScheme:
     text_secondary: str = "#475569"
     # 边框色
     border: str = "#E2E8F0"
+
+    def copy(self) -> "ColorScheme":
+        """返回深拷贝，避免修改全局预设"""
+        return replace(self)
 
 
 @dataclass
@@ -278,7 +282,7 @@ def suggest_design(brief: DesignBrief) -> DesignSuggestion:
         suggestion.color_scheme.primary = brief.primary_color
         notes.append(f"使用自定义主色 {brief.primary_color}")
     elif brief.style in COLOR_SCHEMES:
-        suggestion.color_scheme = COLOR_SCHEMES[brief.style]
+        suggestion.color_scheme = COLOR_SCHEMES[brief.style].copy()
     else:
         suggestion.color_scheme = COLOR_SCHEMES["business_light"]
         notes.append("使用默认商务浅色配色")

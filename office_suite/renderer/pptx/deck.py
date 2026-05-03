@@ -46,10 +46,7 @@ from ...engine.text.path_text import parse_svg_path_struct
 # mm → EMU
 MM_TO_EMU = 36000
 
-# 标准 16:9 幻灯片尺寸 (mm)
-SLIDE_WIDTH_MM = 254.0    # 10 inches
-SLIDE_HEIGHT_MM = 142.875  # 5.625 inches（16:9）
-# 注意：190.5mm = 7.5" 是 4:3 幻灯片高度，16:9 正确值是 142.875mm
+from ...constants import SLIDE_WIDTH_MM, SLIDE_HEIGHT_MM
 
 # 图表类型映射
 CHART_TYPE_MAP = {
@@ -107,14 +104,17 @@ class PPTXRenderer(BaseRenderer):
         # 增强版 IR 校验
         validation = validate_ir_v2(doc)
         for issue in validation.issues:
-            print(f"[IR {issue.severity.value.upper()}] {issue}")
+            logger.log(
+                logging.ERROR if issue.severity.value == "error" else logging.WARNING,
+                "[IR %s] %s", issue.severity.value.upper(), issue,
+            )
         if not validation.is_valid:
-            print(f"[IR] 校验发现 {len(validation.errors)} 个错误，渲染可能不完整")
+            logger.warning("[IR] 校验发现 %d 个错误，渲染可能不完整", len(validation.errors))
 
         # 创建演示文稿
         self._prs = Presentation()
-        self._prs.slide_width = Mm(int(SLIDE_WIDTH_MM))
-        self._prs.slide_height = Mm(int(SLIDE_HEIGHT_MM))
+        self._prs.slide_width = Mm(SLIDE_WIDTH_MM)
+        self._prs.slide_height = Mm(SLIDE_HEIGHT_MM)
 
         # 渲染每张幻灯片
         for slide_node in doc.children:
@@ -1174,6 +1174,7 @@ class PPTXRenderer(BaseRenderer):
             with Image.open(file_path) as img:
                 img_w, img_h = img.size
         except Exception:
+            logger.debug("PIL 打开图片失败，直接添加: %s", file_path, exc_info=True)
             return slide.shapes.add_picture(str(file_path), left, top, width, height)
 
         if img_w <= 0 or img_h <= 0:

@@ -7,6 +7,7 @@
   - 缓存命中/未命中统计
 """
 
+import copy
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from time import monotonic
@@ -67,7 +68,7 @@ class ResourceCache:
         # Move to end (most recently used)
         self._cache.move_to_end(key)
         self._stats.hits += 1
-        return entry.data
+        return copy.deepcopy(entry.data)
 
     def put(self, key: str, data: Any, mime_type: str = "", ttl: float | None = None):
         """存入缓存"""
