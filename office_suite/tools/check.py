@@ -12,7 +12,7 @@ from typing import Iterable
 
 import yaml
 
-from ..dsl.parser import parse_yaml
+from ..dsl.parser import parse_yaml, safe_yaml_load
 from ..dsl.validator import DSLValidationIssue, Severity, validate_dsl
 from ..ir.compiler import compile_document
 from ..ir.validator import ValidationIssue, validate_ir_v2
@@ -74,7 +74,7 @@ def check_dsl_file(
     result = CheckResult(dsl_path=dsl_path)
 
     with open(dsl_path, "r", encoding="utf-8") as file:
-        raw = yaml.safe_load(file) or {}
+        raw = safe_yaml_load(file.read()) or {}
 
     dsl_validation = validate_dsl(raw)
     result.dsl_issues = dsl_validation.issues
@@ -133,7 +133,7 @@ def _validate_referenced_pages(raw: dict, base_dir: Path) -> list[DSLValidationI
             if not page_path.is_absolute():
                 page_path = base_dir / page_path
             try:
-                page_raw = yaml.safe_load(page_path.read_text(encoding="utf-8")) or {}
+                page_raw = safe_yaml_load(page_path.read_text(encoding="utf-8")) or {}
             except OSError as exc:
                 issues.append(DSLValidationIssue(
                     severity=Severity.ERROR,

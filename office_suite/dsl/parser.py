@@ -349,11 +349,26 @@ def parse_document(raw: dict[str, Any], base_dir: Path | None = None) -> Documen
     )
 
 
+def _sanitize_yaml_quotes(text: str) -> str:
+    """将中文引号替换为 ASCII 引号，避免 YAML 解析失败。
+
+    PyYAML 在双引号字符串中遇到未转义的 ``"`` 会报错。
+    中文排版常用 ``“`` (U+201C) 和 ``”`` (U+201D)，这里统一替换。
+    """
+    return text.replace("“", '\\"').replace("”", '\\"')
+
+
+def safe_yaml_load(text: str):
+    """带引号净化的 yaml.safe_load，供全项目统一使用。"""
+    return yaml.safe_load(_sanitize_yaml_quotes(text))
+
+
 def load_yaml(path: str | Path) -> dict[str, Any]:
     """加载 YAML 文件"""
     path = Path(path)
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        text = f.read()
+    return safe_yaml_load(text)
 
 
 def parse_yaml(path: str | Path) -> Document:
@@ -365,5 +380,5 @@ def parse_yaml(path: str | Path) -> Document:
 
 def parse_yaml_string(yaml_str: str) -> Document:
     """从 YAML 字符串解析为 Document"""
-    raw = yaml.safe_load(yaml_str)
+    raw = safe_yaml_load(yaml_str)
     return parse_document(raw)

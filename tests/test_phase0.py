@@ -97,5 +97,21 @@ def test_phase0():
     print("Phase 0 验证完成!")
     print("=" * 60)
 
+def test_safe_yaml_load_chinese_quotes():
+    """验证 safe_yaml_load 能正确处理含中文引号的 YAML。"""
+    from office_suite.dsl.parser import safe_yaml_load
+
+    # Unicode 左右双引号（U+201C / U+201D）
+    yaml_with_smart_quotes = (
+        'version: "4.0"\n'
+        'slides:\n'
+        '  - elements:\n'
+        '      - content: "他说：\u201c你好\u201d世界"'
+    )
+    result = safe_yaml_load(yaml_with_smart_quotes)
+    assert result is not None
+    assert result["version"] == "4.0"
+
+
 if __name__ == "__main__":
     test_phase0()

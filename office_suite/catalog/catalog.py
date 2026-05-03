@@ -21,6 +21,7 @@ from typing import Any
 
 import yaml
 
+from office_suite.dsl.parser import safe_yaml_load
 from .types import ElementDef, ElementLayer
 
 
@@ -43,7 +44,7 @@ class ElementCatalog:
         """
         path = Path(path)
         with open(path, "r", encoding="utf-8") as f:
-            raw = yaml.safe_load(f)
+            raw = safe_yaml_load(f.read())
 
         elements_raw = raw if isinstance(raw, list) else raw.get("elements", [])
         count = 0

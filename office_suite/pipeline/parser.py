@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from office_suite.dsl.parser import safe_yaml_load
 from .core.graph import PipelineGraph, PipelineNode
 
 
@@ -45,11 +46,11 @@ def parse_pipeline_file(path: str | Path) -> PipelineGraph:
     """从 YAML 文件解析流水线"""
     path = Path(path)
     with open(path, "r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
+        raw = safe_yaml_load(f.read())
     return parse_pipeline_yaml(raw)
 
 
 def parse_pipeline_string(yaml_str: str) -> PipelineGraph:
     """从 YAML 字符串解析流水线"""
-    raw = yaml.safe_load(yaml_str)
+    raw = safe_yaml_load(yaml_str)
     return parse_pipeline_yaml(raw)

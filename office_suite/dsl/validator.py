@@ -384,9 +384,9 @@ def validate_dsl(doc: dict) -> DSLValidationResult:
 
 def validate_dsl_string(yaml_str: str) -> DSLValidationResult:
     """从 YAML 字符串校验 DSL 文档"""
-    import yaml
+    from .parser import safe_yaml_load
     try:
-        doc = yaml.safe_load(yaml_str)
+        doc = safe_yaml_load(yaml_str)
     except yaml.YAMLError as e:
         result = DSLValidationResult()
         result.issues.append(DSLValidationIssue(

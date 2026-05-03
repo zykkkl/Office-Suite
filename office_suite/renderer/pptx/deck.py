@@ -303,6 +303,10 @@ class PPTXRenderer(BaseRenderer):
                         slide, file_path, left, top, width, height,
                         fit=layer.get("fit", "cover"),
                     )
+                else:
+                    logger.warning("background_board image not found: %s", file_path)
+            else:
+                logger.warning("background_board %s layer has no source path", role)
             return
 
         shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
@@ -1693,7 +1697,8 @@ class PPTXRenderer(BaseRenderer):
         filter_type = filter_spec.get("type")
         if filter_type is None and ("highlight" in filter_spec or "shadow" in filter_spec):
             filter_type = "duotone"
-        filter_type = filter_type or "duotone"
+        if not filter_type:
+            return  # 无有效滤镜类型，不做任何处理
 
         # 类型分派
         if filter_type == "duotone":
